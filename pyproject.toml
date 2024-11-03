@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=67.0.0", "wheel"]
+build-backend = "setuptools.build_meta:__legacy__"
+
+[project]
+name = "merv"
+authors = [
+    {name = "Jihoon Chung", email="jc5933@princeton.edu"},
+    {name = "Tyler Zhu", email="tylerzhu@princeton.edu"},
+]
+description = "Unifying Specialized Visual Encoders for Video Language Models"
+version = "0.0.1"
+readme = "README.md"
+requires-python = ">=3.8"
+keywords = ["video-language models", "multimodal pretraining", "machine learning"]
+license = {file = "LICENSE"}
+classifiers = [
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "accelerate>=0.25.0",
+    "draccus @ git+https://github.com/dlwh/draccus",
+    "decord",
+    "einops",
+    "huggingface_hub>=0.24.6",
+    "jsonlines",
+    "ninja", # for flash_attn
+    "numpy<2.0",
+    "openai",
+    "opencv-python",
+    "packaging", # for flash_attn
+    "peft==0.10.0",
+    "pyyaml-include<=1.4.1",
+    "rich",
+    "timm==0.9.10", # pin for latest timm behavior with unpack_tuple()
+    "torch==2.1.0",
+    "torchvision==0.16.0",
+    "transformers==4.44.2",
+    "wandb",
+    "calflops==0.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "gpustat",
+    "ipython",
+    "pre-commit",
+    "ruff",
+]
+compile = [
+    "flash_attn", 
+]
+
+[project.urls]
+homepage = "https://tylerzhu.com/merv/"
+repository = "https://github.com/princetonvisualai/merv"
+documentation = "https://github.com/princetonvisualai/merv"
+
+[tool.setuptools]
+package-dir = {""="."}
+packages = ["merv"]
+
+[tool.setuptools.package-data]
+"merv" = ["py.typed"]
+
+[tool.poetry.dependencies]
+pytorch-cuda = "12.4"
+
+[tool.black]
+line-length = 121
+target-version = ["py38", "py39", "py310"]
+preview = true
+
+[tool.ruff]
+line-length = 121
+target-version = "py38"
+
+[tool.ruff.lint]
+select = ["A", "B", "E", "F", "I", "RUF", "W"]
+ignore = ["F722"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["E402", "F401"]
