@@ -56,7 +56,7 @@ If you run into any problems during the installation process, please file a GitH
 
 To run our models in inference, we suggest having at least 80GB of CPU memory and 24GB of GPU memory for inference. 
 We have tested our model on a single RTX 3090.
-See [```scripts/quick_start.py```](scripts/quick_start.py) for a simple example (shown below).
+See [```scripts/quick_start.py```](scripts/quick_start.py) for a simple example (shown below), and [```merv/models/registry.py```](merv/models/registry.py) for a list of available models: our two main models ```merv``` and ```merv-full```, as well as some single encoder baselines for testing.
 
 ```python
 from pathlib import Path
