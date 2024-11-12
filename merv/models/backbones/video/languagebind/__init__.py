@@ -148,7 +148,7 @@ class LangBindVideoBackbone(VideoBackbone):
         self.video_backbone_id = video_backbone_id
         self.token = token
         self.featurizer = LanguageBindVideo.from_pretrained(
-            "LanguageBind/LanguageBind_Video_merge", cache_dir="./cache_dir"
+            "LanguageBind/LanguageBind_Video_merge", 
         ).vision_model
         assert image_resize_strategy == "resize-naive"
 
