@@ -65,8 +65,11 @@ VIDEO_BACKBONES = {
 
     # === Hiera Video Backbone ===
     "hiera-base-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-base-video-noft": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
     "hiera-base-plus-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-base-plus-video-noft": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
     "hiera-large-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-large-video-noft": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
 }
 
 

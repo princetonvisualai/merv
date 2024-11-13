@@ -20,9 +20,12 @@ from merv.models.backbones.video.base_video import LetterboxPad, unpack_tuple
 
 # Grab the corresponding models from torch hub
 HIERA_VIDEO_BACKBONES = {
-    "hiera-base-video": "hiera_base_16x224",
-    "hiera-base-plus-video": "hiera_base_plus_16x224",
-    "hiera-large-video": "hiera_large_16x224",
+    "hiera-base-video": "facebook/hiera_base_16x224.mae_k400_ft_k400",
+    "hiera-base-video-noft": "facebook/hiera_base_16x224.mae_k400",
+    "hiera-base-plus-video": "hiera_base_plus_16x224.mae_k400_ft_k400",
+    "hiera-base-plus-video-noft": "hiera_base_plus_16x224.mae_k400",
+    "hiera-large-video": "hiera_large_16x224.mae_k400_ft_k400",
+    "hiera-large-video-noft": "hiera_large_16x224.mae_k400",
 }
 
 
@@ -40,13 +43,10 @@ class HieraVideoBackbone(VideoBackbone):
             default_image_size=default_image_size,
             num_frames=num_frames,
         )
-        self.torchhub_path_or_url = HIERA_VIDEO_BACKBONES[video_backbone_id]
+        self.huggingface_path = HIERA_VIDEO_BACKBONES[video_backbone_id]
 
         # Initialize Featurizer (ViT) by downloading from HF / TIMM Hub if necessary
-        self.featurizer: Hiera = torch.hub.load(
-            "facebookresearch/hiera", model=self.torchhub_path_or_url, pretrained=True, checkpoint="mae_k400_ft_k400"
-        )
-
+        self.featurizer : Hiera = Hiera.from_pretrained(f"facebook/{self.huggingface_path}")
         self.featurizer.eval()
 
         # Get Configs for featurizers =>> Note :: Override default image size for larger resolution models

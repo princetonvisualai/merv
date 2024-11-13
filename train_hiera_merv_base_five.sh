@@ -1,7 +1,7 @@
 ID="hiera_merv_base_five"
 
-WANDB_MODE=disabled \
-torchrun --standalone --nnodes 1 --nproc-per-node 4 scripts/pretrain_video.py \
+# WANDB_MODE=disabled \
+torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
   --run_id $ID \
   --model.model_id $ID \
   --model.type "merv-base" \
