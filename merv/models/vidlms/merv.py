@@ -767,6 +767,7 @@ class MERV(VidLM):
 
     @torch.inference_mode()
     def generate(self, video: str, prompt_text: str, num_frames: List[int], **kwargs) -> str:
+        assert len(num_frames) == len(self.video_backbones), "Number of frames should match number of video backbones!"
         # For now, only support generation with a batch size of 1 for simplicity
         tokenizer = self.llm_backbone.tokenizer
         video_transforms = [video_backbone.video_transform for video_backbone in self.video_backbones]

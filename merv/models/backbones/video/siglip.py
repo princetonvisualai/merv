@@ -146,16 +146,7 @@ class SiglipVideoBackbone(VideoBackbone):
         video_values = video_values.reshape(-1, C, H, W)
         # __init__ makes sure to select featurizer vs. featurizer.forward_features
         video_features = self.featurizer(video_values)
-
-        if "classemb-at-first" in self.identifier:
-            video_features0 = video_features[0].reshape(B, -1, self.embed_dim)
-            video_features1 = video_features0.mean(1, keepdim=True)
-            # siglip has no class token. self.featurizer.has_class_token == False
-            # use average of all token as class token.
-            video_features = torch.concat([video_features1, video_features0], 1)
-
-        else:
-            video_features = video_features.reshape(B, -1, self.embed_dim)
+        video_features = video_features.reshape(B, -1, self.embed_dim)
 
         return video_features
 
@@ -169,9 +160,7 @@ class SiglipVideoBackbone(VideoBackbone):
 
     @property
     def num_patches(self) -> int:
-        if "classemb-at-first" in self.identifier:
-            return self.num_frames * self.featurizer.patch_embed.num_patches
-        elif self.class_token:
+        if self.class_token:
             return self.num_frames
         else:
             return self.num_frames * self.featurizer.patch_embed.num_patches
