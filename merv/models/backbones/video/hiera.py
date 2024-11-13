@@ -12,6 +12,7 @@ import torch
 from hiera import Hiera, HieraBlock
 from torch.distributed.fsdp.wrap import (_module_wrap_policy, _or_policy,
                                          transformer_auto_wrap_policy)
+import torchvision.transforms as transforms
 from torchvision.transforms import Compose, Resize, functional as F
 
 from merv.models.backbones.video import VideoBackbone
@@ -51,11 +52,21 @@ class HieraVideoBackbone(VideoBackbone):
         # Get Configs for featurizers =>> Note :: Override default image size for larger resolution models
         # Slightly different setup for Hiera models
         self.data_cfg = self.featurizer.config
+        # Override for now, but we still need to manually reshape in groups of 16
         self.data_cfg["input_size"] = (num_frames, self.default_image_size, self.default_image_size)
         self.data_cfg["in_chans"] = 3
 
         # Initialize Default Image Transform --> Modified by `self.image_resize_strategy`
-        default_image_transform = timm.data.create_transform(**self.data_cfg, is_training=False)
+
+        default_image_transform = []
+
+        default_image_transform.append(transforms.Resize(256))
+        default_image_transform.append(transforms.CenterCrop(self.default_image_size))
+        default_image_transform.append(transforms.ToTensor())
+        default_image_transform.append(
+            transforms.Normalize(mean=[0.45, 0.45, 0.45], std=[0.225, 0.225, 0.225])
+        )
+        default_image_transform = Compose(default_image_transform)
 
         # Switch on `image_resize_strategy`
         if self.image_resize_strategy == "resize-naive":
@@ -99,10 +110,13 @@ class HieraVideoBackbone(VideoBackbone):
         # Forward Pass through the Featurizer (ViT) =>> Note :: Already returns class token for every frame!
 
         B, F, C, H, W = video_values.shape
+        # Reshape to views of 16 frames
+        video_values = video_values.reshape(-1, 16, C, H, W)
         video_values = video_values.permute(0, 2, 1, 3, 4).contiguous()
+
         # __init__ makes sure to select featurizer vs. featurizer.forward_features
-        # Grab last feature, which is spatially aligned
         video_features = self.featurizer(video_values, return_intermediates=True)[1][-1]
+        video_features = video_features.reshape(B, -1, self.embed_dim)
 
         return video_features
 
@@ -113,7 +127,8 @@ class HieraVideoBackbone(VideoBackbone):
 
     @property
     def embed_dim(self) -> int:
-        return self.featurizer.embed_dim
+        q_pool = self.data_cfg["q_pool"]
+        return self.featurizer.config["embed_dim"] * 2**q_pool
 
     @property
     def num_patches(self) -> int:

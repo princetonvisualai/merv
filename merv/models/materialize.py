@@ -13,6 +13,7 @@ from merv.models.backbones.llm import LLaMa2LLMBackbone, LLaMa3LLMBackbone, LLaM
 from merv.models.backbones.video import (
     DinoV2VideoBackbone,
     LangBindVideoBackbone,
+    HieraVideoBackbone,
     SiglipVideoBackbone,
     VideoBackbone,
     VideoTransform,
@@ -61,6 +62,11 @@ VIDEO_BACKBONES = {
     "siglip-vit-so400m-all-tokens": {"cls": SiglipVideoBackbone, "kwargs": {"default_image_size": 224}},
     "siglip-vit-so400m-384px": {"cls": SiglipVideoBackbone, "kwargs": {"default_image_size": 224}},
     "siglip-vit-so400m-384px-all-tokens": {"cls": SiglipVideoBackbone, "kwargs": {"default_image_size": 224}},
+
+    # === Hiera Video Backbone ===
+    "hiera-base-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-base-plus-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-large-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
 }
 
 

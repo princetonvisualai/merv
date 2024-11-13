@@ -86,8 +86,8 @@ class PretrainConfig:
 
     # Tracking Parameters
     trackers: Tuple[str, ...] = ("jsonl", "wandb")                  # Trackers to initialize (if W&B, add config!)
-    wandb_project: str = "merv"                                     # Name of W&B project (default: `merv`)
-    wandb_entity: Optional[str] = None                              # Name of W&B entity (default: None)
+    wandb_project: str = "vidlm"                                     # Name of W&B project (default: `merv`)
+    wandb_entity: Optional[str] = "tz-ego4d"                            # Name of W&B entity (default: None)
     slurm_id: Optional[int] = -1                                    # SLURM Job ID (if running on SLURM), grab from ENV
 
     def __post_init__(self) -> None:

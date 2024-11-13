@@ -30,7 +30,9 @@ ID="merv-run"
 torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
   --run_id $ID \
   --model.model_id $ID \
-  --model.type "merv-base-recipe" \
+  --model.type "merv-base" \
   --dataset.type "videollava" \
   --stage finetune 
 ```
+
+TODO: add more settings.
