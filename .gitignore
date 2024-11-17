@@ -153,3 +153,6 @@ eval_result/
 data
 pyrightconfig.json
 *.lock
+
+*eval_results*/
+slurm/
