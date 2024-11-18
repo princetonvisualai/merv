@@ -61,7 +61,7 @@ class MERV(VidLM):
         llm_backbone: LLMBackbone,
         enable_mixed_precision_training: bool = True,
         arch_specifier: str = "gelu-mlp",
-        adapter: Optional[str] = None,
+        feature_fusion: Optional[str] = None,
         projector_token_length: int = 64,
         visual_feature_length: int = 512,
         pre_proj_layernorm: bool = False,
@@ -76,8 +76,8 @@ class MERV(VidLM):
             enable_mixed_precision_training=enable_mixed_precision_training,
         )
 
-        # set adapter strategy
-        self.feature_fusion_type = adapter
+        # set feature_fusion strategy
+        self.feature_fusion_type = feature_fusion
         self.pre_proj_layernorm = pre_proj_layernorm
         self.normalize_post_proj = normalize_post_proj
         self.text_embedding_dim = text_embedding_dim
@@ -86,7 +86,7 @@ class MERV(VidLM):
         # Set Weight Initialization Seed for Projector Consistency
         torch.manual_seed(video_backbones[0].embed_dim)
 
-        # Initialize Projection (Adapter) based on `arch_specifier`
+        # Initialize Projection (feature_fusion) based on `arch_specifier`
         self.arch_specifier = arch_specifier
         if arch_specifier.endswith("linear"):
             mlp_type = "linear"
@@ -206,7 +206,7 @@ class MERV(VidLM):
                 visual_feature_length = correct_length
         self.visual_feature_length = visual_feature_length
 
-        # Initialize Specific Adapter
+        # Initialize Specific feature_fusion
 
         if self.feature_fusion_type == "query_mlp":
             self.feature_fusion = MLPProjector(3072, len(video_backbones))
@@ -232,7 +232,7 @@ class MERV(VidLM):
         self.video_backbone_requires_grad = False
 
         # Set Module Keys =>> used in Checkpoint Saving / Model Loading
-        self.all_module_keys = ["llm_backbone", "projectors", "video_backbone", "adapter"]
+        self.all_module_keys = ["llm_backbone", "projectors", "video_backbone", "feature_fusion"]
         self.trainable_module_keys = []
 
         # === Generation Utilities ===
@@ -252,7 +252,7 @@ class MERV(VidLM):
         llm_backbone: LLMBackbone,
         enable_mixed_precision_training: bool = True,
         arch_specifier: str = "gelu-mlp",
-        adapter: Optional[str] = None,
+        feature_fusion: Optional[str] = None,
         visual_feature_length: Optional[int] = -1,
         projector_token_length: Optional[int] = -1,
     ) -> MERV:
@@ -263,7 +263,7 @@ class MERV(VidLM):
             llm_backbone,
             enable_mixed_precision_training=enable_mixed_precision_training,
             arch_specifier=arch_specifier,
-            adapter=adapter,
+            feature_fusion=feature_fusion,
             visual_feature_length=visual_feature_length,
             projector_token_length=projector_token_length,
         )
@@ -282,10 +282,14 @@ class MERV(VidLM):
         vidlm.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
 
         if vidlm.feature_fusion is not None:
-            vidlm.feature_fusion.load_state_dict(model_state_dict["adapter"])
+            # Check for either feature_fusion or adapter, depending on the model
+            if "feature_fusion" in model_state_dict:
+                vidlm.feature_fusion.load_state_dict(model_state_dict["feature_fusion"])
+            elif "adapter" in model_state_dict:
+                vidlm.feature_fusion.load_state_dict(model_state_dict["adapter"])
         else:
-            assert "adapter" not in model_state_dict or len(model_state_dict["adapter"]) == 0, model_state_dict[
-                "adapter"
+            assert "feature_fusion" not in model_state_dict or len(model_state_dict["feature_fusion"]) == 0, model_state_dict[
+                "feature_fusion"
             ]
 
         # Freeze Weights
@@ -316,7 +320,7 @@ class MERV(VidLM):
                 self.feature_fusion.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["projectors", "adapter"]
+            self.trainable_module_keys = ["projectors", "feature_fusion"]
 
             # Update Trackers
             self.video_backbone_requires_grad = False
@@ -329,7 +333,7 @@ class MERV(VidLM):
             )
             overwatch.info(f"[Frozen]    🥶 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
             overwatch.info(f"[TRAINABLE] 🔥 =>> Projectors `{self.arch_specifier}`", ctx_level=1)
-            overwatch.info(f"[TRAINABLE] 🔥 =>> Adapters `{self.feature_fusion_type}`", ctx_level=1)
+            overwatch.info(f"[TRAINABLE] 🔥 =>> feature_fusions `{self.feature_fusion_type}`", ctx_level=1)
 
         elif stage == "full-align":
             self.video_backbones.requires_grad_(False)
@@ -339,7 +343,7 @@ class MERV(VidLM):
                 self.feature_fusion.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["projectors", "llm_backbone", "adapter"]
+            self.trainable_module_keys = ["projectors", "llm_backbone", "feature_fusion"]
 
             # Update Trackers
             self.video_backbone_requires_grad = False
@@ -352,7 +356,7 @@ class MERV(VidLM):
             )
             overwatch.info(f"[TRAINABLE] 🔥 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
             overwatch.info(f"[TRAINABLE] 🔥 =>> Projectors `{self.arch_specifier}`", ctx_level=1)
-            overwatch.info(f"[TRAINABLE] 🔥 =>> Adapters `{self.feature_fusion_type}`", ctx_level=1)
+            overwatch.info(f"[TRAINABLE] 🔥 =>> feature_fusions `{self.feature_fusion_type}`", ctx_level=1)
         elif stage == "finetune" or stage == "second_finetune":
             self.video_backbones.requires_grad_(False)
             self.llm_backbone.requires_grad_(True)
@@ -361,7 +365,7 @@ class MERV(VidLM):
                 self.feature_fusion.requires_grad_(True)
 
             # Add to `self.trainable_module_keys`
-            self.trainable_module_keys = ["projectors", "llm_backbone", "adapter"]
+            self.trainable_module_keys = ["projectors", "llm_backbone", "feature_fusion"]
 
             # Update Trackers
             self.video_backbone_requires_grad = False
@@ -374,7 +378,7 @@ class MERV(VidLM):
             )
             overwatch.info(f"[TRAINABLE] 🔥 =>> LLM Backbone `{self.llm_backbone.identifier}`", ctx_level=1)
             overwatch.info(f"[TRAINABLE] 🔥 =>> Projector `{self.arch_specifier}`", ctx_level=1)
-            overwatch.info(f"[TRAINABLE] 🔥 =>> Adapters `{self.feature_fusion_type}`", ctx_level=1)
+            overwatch.info(f"[TRAINABLE] 🔥 =>> feature_fusions `{self.feature_fusion_type}`", ctx_level=1)
 
         elif stage == "full-finetune":
             raise NotImplementedError
@@ -424,10 +428,13 @@ class MERV(VidLM):
             self.llm_backbone.load_state_dict(model_state_dict["llm_backbone"])
 
             if self.feature_fusion is not None:
-                self.feature_fusion.load_state_dict(model_state_dict["adapter"])
+                if "feature_fusion" in model_state_dict:
+                    self.feature_fusion.load_state_dict(model_state_dict["feature_fusion"])
+                elif "adapter" in model_state_dict:
+                    self.feature_fusion.load_state_dict(model_state_dict["adapter"])
             else:
-                assert "adapter" not in model_state_dict or len(model_state_dict["adapter"]) == 0, model_state_dict[
-                    "adapter"
+                assert "feature_fusion" not in model_state_dict or len(model_state_dict["feature_fusion"]) == 0, model_state_dict[
+                    "feature_fusion"
                 ]
 
             return
@@ -591,14 +598,14 @@ class MERV(VidLM):
         elif self.feature_fusion_type == "concat":
             projected_patch_embeddings = torch.concat(projected_patch_embeddings, 1).unsqueeze(1)
         elif self.feature_fusion_type == "concat_channel" or self.feature_fusion_type == "concat_channel_ln":
-            # Concat along channel, then add adapter afterwards to reshape into LLM dim
+            # Concat along channel, then add feature_fusion afterwards to reshape into LLM dim
             projected_patch_embeddings = torch.concat(projected_patch_embeddings, -1)
             projected_patch_embeddings = self.feature_fusion(projected_patch_embeddings).unsqueeze(1)
         elif "cross_attention" in self.feature_fusion_type:
             projected_patch_embeddings, mixer_value = self.feature_fusion(projected_patch_embeddings)
             projected_patch_embeddings = projected_patch_embeddings.unsqueeze(1)
         else:
-            print(f'Adapter "{self.feature_fusion_type}" doesn\'t exist')
+            print(f'feature_fusion "{self.feature_fusion_type}" doesn\'t exist')
             raise NotImplementedError
 
         #################################################################################
