@@ -339,7 +339,7 @@ def evaluate(cfg: EvalConfig) -> None:
     loaded_cfg = json.load(open(cfg.full_path_ckpt / "config.json", "r"))
     loaded_cfg["model"].pop("type", None)
     loaded_cfg["model"].pop("vidlm_id", None)
-    model_cfg = ModelConfig.get_choice_class(ModelRegistry.REPRODUCTION_7B.model_id)(**loaded_cfg["model"])
+    model_cfg = ModelConfig.get_choice_class(ModelRegistry.MERV_BASE.model_id)(**loaded_cfg["model"])
 
     benchmark = cfg.eval_dataset.replace("_token", "")
     filename_q = cfg.filename_question
