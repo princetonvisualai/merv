@@ -151,7 +151,7 @@ def get_vidlm(
     arch_specifier: str,
     video_backbones: List[VideoBackbone],
     llm_backbone: LLMBackbone,
-    adapter: Optional[str],
+    feature_fusion: Optional[str],
     projector_token_length: int,
     visual_feature_length: int,
     enable_mixed_precision_training: bool = True,
@@ -163,7 +163,7 @@ def get_vidlm(
         llm_backbone,
         enable_mixed_precision_training=enable_mixed_precision_training,
         arch_specifier=arch_specifier,
-        adapter=adapter,
+        feature_fusion=feature_fusion,
         projector_token_length=projector_token_length,
         visual_feature_length=visual_feature_length,
     )
