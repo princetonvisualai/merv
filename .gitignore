@@ -134,7 +134,7 @@ dmypy.json
 # Auth Tokens / Hidden Files
 .hf_token
 .*_token
-.oai_keys.yaml
+.openai_key
 
 # IDE Caches
 .idea/
@@ -156,3 +156,4 @@ pyrightconfig.json
 
 *eval_results*/
 slurm/
+eval_data
