@@ -24,7 +24,6 @@ DINOv2_VISION_BACKBONES = {
     "dinov2-video-all-token-with-cls": "vit_large_patch14_reg4_dinov2.lvd142m",
 }
 
-
 class DinoV2VideoBackbone(VideoBackbone):
     def __init__(
         self, video_backbone_id: str, image_resize_strategy: str, default_image_size: int = 224, num_frames: int = 8
@@ -69,8 +68,9 @@ class DinoV2VideoBackbone(VideoBackbone):
         self.featurizer.eval()
 
         # Usually we Monkey-Patch the `forward()` function of the featurizers to ensure FSDP-compatibility
-        #   => Note: To adapt DINO to video, we return a class token for every single frame (automatically)
-        #            forward() already does this, so we don't need to do anything here!
+        #   => Note: To adapt DINO to video, in the case where we use only a class token, 
+        #            we return a class token for every single frame (automatically).
+        #            forward() already does this, so we don't need to do anything in that case!
 
         # Get Configs for featurizers =>> Note :: Override default image size for larger resolution models
         self.data_cfg = timm.data.resolve_model_data_config(self.featurizer)
