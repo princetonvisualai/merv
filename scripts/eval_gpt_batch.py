@@ -24,7 +24,7 @@ def query_gpt(client, prediction_set, caption_files, gpt_batch_batch_id, ckpt_na
     openai_modelname = "gpt-4o-mini-2024-07-18"
 
     jsonl = []
-    for key in caption_files:
+    for key in tqdm(caption_files, desc='Generating JSONL'):
         qa_set = prediction_set[key]
         question = qa_set["q"]
         answer = qa_set["a"]
@@ -72,9 +72,9 @@ def query_gpt(client, prediction_set, caption_files, gpt_batch_batch_id, ckpt_na
     size = 0
     ind = 0
     batch_input_files = []
-    for l in jsonl:
+    for l in tqdm(jsonl, desc='Uploading to OpenAI'):
         this_size = len(l)/1024/1024
-        if size  + this_size > 190 or len(batchfile) > 3:
+        if size  + this_size > 190 or len(batchfile) > 49000:
             fileio = io.BytesIO("\n".join(batchfile).encode('utf-8'))
             fileio.name = '{}_{}_{}.jsonl'.format(ckpt_name, benchmark, ind)
             batch_input_file = client.files.create(
@@ -100,6 +100,8 @@ def query_gpt(client, prediction_set, caption_files, gpt_batch_batch_id, ckpt_na
         )
         batch_input_files.append(batch_input_file)
         ind+=1
+
+    print(f'Uploaded {ind} files to OpenAI')
 
     # we should check if file status is 'precessed' but its now deprecated... hmm
     submitted_batchs = []
@@ -254,14 +256,27 @@ def main():
                 submitted_batch_ids.append(json.loads(gpt_batch_id)['id'])
 
 
+    print('Requesting OpenAI server every 60 seconds...')
+    bar = tqdm(total=10)
     while True:
         batches_retrieved = [client.batches.retrieve(submitted_batch_id) for submitted_batch_id in submitted_batch_ids]
         batches_status = [batch_retrieved.status for batch_retrieved in batches_retrieved]
-        print(f"Batches status: {batches_status}")
+        bar.desc = f"Batches status: {batches_status}"
+        bar.refresh()
         if all([batch_status == "completed" for batch_status in batches_status]):
             break 
         elif any([batch_status in ["in_progress", "validating", "finalizing"] for batch_status in batches_status]):
-            print("sleeping for 60 seconds")
+            
+
+            total = sum([batch_retrieved.request_counts.total for batch_retrieved in batches_retrieved 
+                            if batch_retrieved.status in ["in_progress", 'finalizing']])
+            done = sum([batch_retrieved.request_counts.completed for batch_retrieved in batches_retrieved
+                            if batch_retrieved.status in ["in_progress", 'finalizing']])
+            bar.total = total
+            bar.desc = f"Batches status: {batches_status}"
+            bar.refresh()
+            bar.update(done-bar.n)
+            
             time.sleep(60)
         else:
             print("Batch failed. They have to be either completed, in_progress, validating, or finalizing")

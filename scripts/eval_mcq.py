@@ -301,9 +301,7 @@ class EvalConfig:
     strategy: str = 'naive'
     filename_question: str = 'test_q'
     filename_answer: str = 'test_a'
-    full_path_ckpt: Union[str, Path] = (
-        "videollava-clip-dinovid-bs64"
-    )
+    full_path_ckpt: Union[str, Path] = None
 
 
 def prepare_mcqa_question(sample, gt_answer, cfg):
@@ -329,7 +327,11 @@ def prepare_mcqa_question(sample, gt_answer, cfg):
 @draccus.wrap()
 def evaluate(cfg: EvalConfig) -> None:
     cfg.model_path = Path(cfg.model_path)
-    cfg.full_path_ckpt = Path(cfg.full_path_ckpt)
+    
+    if cfg.full_path_ckpt is None:
+        cfg.full_path_ckpt = "runs" / cfg.model_path
+    else:
+        cfg.full_path_ckpt = Path(cfg.full_path_ckpt)
     print(cfg)
 
     os.makedirs("./eval_result" / cfg.model_path, exist_ok=True)
