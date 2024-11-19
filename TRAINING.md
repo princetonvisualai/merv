@@ -55,3 +55,5 @@ torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
   --dataset.type "videollava" \
   --stage finetune 
 ```
+
+TODO: add more settings.

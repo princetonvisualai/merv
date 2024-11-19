@@ -63,7 +63,7 @@ class VideoBackbone(nn.Module, ABC):
         self.default_image_size: int = default_image_size
         self.num_frames: int = num_frames
 
-        # Instance attributes for a Vision Backbone
+        # Instance attributes for a Video Backbone
         self.featurizer: nn.Module = None
         self.video_transform: VideoTransform = None
 
@@ -103,4 +103,3 @@ class VideoBackbone(nn.Module, ABC):
     @property
     @abstractmethod
     def half_precision_dtype(self) -> torch.dtype: ...
-

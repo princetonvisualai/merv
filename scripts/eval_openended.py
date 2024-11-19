@@ -179,8 +179,6 @@ def evaluate(cfg: EvalConfig) -> None:
                 question["pred"] = generated_text
                 question["message"] = message
 
-                if vidlm.mixer_value is not None:
-                    question["mixer_value"] = vidlm.mixer_value.detach().cpu().tolist()[0]
                 question = {**question, **answers_dict[question["question_id"]]}
 
                 f.write(json.dumps(question) + "\n")

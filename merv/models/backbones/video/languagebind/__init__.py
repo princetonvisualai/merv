@@ -1,5 +1,6 @@
 from functools import partial
 from typing import Callable, Optional, Tuple
+import os
 
 import torch
 from torch import nn
@@ -26,6 +27,7 @@ transform_dict = {
     "video": LanguageBindVideoProcessor,
     "image": LanguageBindImageProcessor,
 }
+HF_HOME = os.getenv("HF_HOME", "~/.cache/huggingface")
 
 
 class LangBindVideoBackbone(VideoBackbone):
@@ -57,6 +59,7 @@ class LangBindVideoBackbone(VideoBackbone):
         self.token = token
         self.featurizer = LanguageBindVideo.from_pretrained(
             "LanguageBind/LanguageBind_Video_merge", 
+            cache_dir=HF_HOME,
         ).vision_model
         assert image_resize_strategy == "resize-naive"
 
