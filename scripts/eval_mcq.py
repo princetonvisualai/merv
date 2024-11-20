@@ -284,11 +284,8 @@ overwatch = initialize_overwatch(__name__)
 @dataclass
 class EvalConfig:
     # fmt: off
-    model_path: Union[str, Path] = (                                    # Path to Pretrained VidLM (on disk or HF Hub)
-        "videollava-clip-dinovid-bs64"
-    )
-
-    hf_token: Union[str, Path] = Path(".hf_token")                      # Environment variable or Path to HF Token
+    model_path: Union[str, Path] = "merv-full"                    # Path to Pretrained VidLM (on disk or HF Hub)
+    hf_token: Union[str, Path] = Path(".hf_token")                # Environment variable or Path to HF Token
 
     # Default Generation Parameters =>> subscribes to HuggingFace's GenerateMixIn API
     do_sample: bool = False
@@ -301,9 +298,7 @@ class EvalConfig:
     strategy: str = 'naive'
     filename_question: str = 'test_q'
     filename_answer: str = 'test_a'
-    full_path_ckpt: Union[str, Path] = (
-        "videollava-clip-dinovid-bs64"
-    )
+    full_path_ckpt: Union[str, Path] = None
 
 
 def prepare_mcqa_question(sample, gt_answer, cfg):
@@ -329,7 +324,11 @@ def prepare_mcqa_question(sample, gt_answer, cfg):
 @draccus.wrap()
 def evaluate(cfg: EvalConfig) -> None:
     cfg.model_path = Path(cfg.model_path)
-    cfg.full_path_ckpt = Path(cfg.full_path_ckpt)
+    
+    if cfg.full_path_ckpt is None:
+        cfg.full_path_ckpt = "runs" / cfg.model_path
+    else:
+        cfg.full_path_ckpt = Path(cfg.full_path_ckpt)
     print(cfg)
 
     os.makedirs("./eval_result" / cfg.model_path, exist_ok=True)
@@ -339,7 +338,7 @@ def evaluate(cfg: EvalConfig) -> None:
     loaded_cfg = json.load(open(cfg.full_path_ckpt / "config.json", "r"))
     loaded_cfg["model"].pop("type", None)
     loaded_cfg["model"].pop("vidlm_id", None)
-    model_cfg = ModelConfig.get_choice_class(ModelRegistry.REPRODUCTION_7B.model_id)(**loaded_cfg["model"])
+    model_cfg = ModelConfig.get_choice_class(ModelRegistry.MERV_BASE.model_id)(**loaded_cfg["model"])
 
     benchmark = cfg.eval_dataset.replace("_token", "")
     filename_q = cfg.filename_question

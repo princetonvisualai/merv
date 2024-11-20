@@ -116,7 +116,7 @@ def load_vid(
         video_backbones,
         llm_backbone,
         arch_specifier=model_cfg.arch_specifier,
-        adapter=model_cfg.feature_fusion,
+        feature_fusion=model_cfg.feature_fusion,
         visual_feature_length=model_cfg.visual_feature_length,
         projector_token_length=model_cfg.projector_token_length,
     )
