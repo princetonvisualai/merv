@@ -26,16 +26,13 @@ def get_statistics(
     video_values = [
         bb.video_transform(val).unsqueeze(0).to(dtype) for bb, val in zip(vidlm.video_backbones, video_values)
     ]
-    text_emb = torch.randn((vidlm.text_embedding_dim)).unsqueeze(0).unsqueeze(0).to(dtype)
     is_image = torch.tensor([False]).unsqueeze(0)
     device_id = vidlm.device
 
     dummy_input = {
         "input_ids": input_ids.to(device_id),
         "video_values": [val.to(device_id) for val in video_values],
-        "text_emb": text_emb.to(device_id),
         "is_image": is_image.to(device_id),
-        "input_loc": [[[3, 10]]],
     }
 
     # Count multiply-add as 1 op, as standard in ML i think
