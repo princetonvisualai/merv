@@ -1,3 +1,4 @@
+"""Taken from https://github.com/MrYxJ/calculate-flops.pytorch, many thanks."""
 import random
 import string
 
