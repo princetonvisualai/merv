@@ -268,10 +268,8 @@ def main():
         elif any([batch_status in ["in_progress", "validating", "finalizing"] for batch_status in batches_status]):
             
 
-            total = sum([batch_retrieved.request_counts.total for batch_retrieved in batches_retrieved 
-                            if batch_retrieved.status in ["in_progress", 'finalizing']])
-            done = sum([batch_retrieved.request_counts.completed for batch_retrieved in batches_retrieved
-                            if batch_retrieved.status in ["in_progress", 'finalizing']])
+            total = sum([batch_retrieved.request_counts.total for batch_retrieved in batches_retrieved])
+            done = sum([batch_retrieved.request_counts.completed for batch_retrieved in batches_retrieved])
             bar.total = total
             bar.desc = f"Batches status: {batches_status}"
             bar.refresh()

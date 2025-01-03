@@ -23,9 +23,8 @@ data/download/videollava
     └── ...
 ```
 
-## Training
+## Example Training Script
 Here is a bare-bones shell script one can use to launch reproduction of our method.
-
 ```sh
 ID="merv-run"
 
@@ -55,5 +54,3 @@ torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
   --dataset.type "videollava" \
   --stage finetune 
 ```
-
-TODO: add more settings.

@@ -108,14 +108,16 @@ We evaluate on a diverse set of tasks.
 
 We follow the Video-ChatGPT protocol for evaluation, but our prompts are the same as Video-LLaVA for consistency in comparison.
 Note that the API model is always subject to change; we used ``gpt-3.5-turbo-0613`` for GPT evaluation, but this is no longer available through OpenAI.
-Instead, the recommendation is to use the latest ``gpt-3.5-turbo`` (``gpt-4o-mini`` was not stable for us).
+Instead, we provide API usage of ``gpt-4o-mini`` as per OpenAI's recommendation, but this was not stable for us and did not reproduce standard results.
+Further investigation in needed in this area.
+
 We provide some example scripts for evaluation.
 We run inference in parallel, and then we run GPT evaluation once all of the inference is done.
 
 For open-ended QA, first, create a file ``.openai_key`` with your OpenAI api key for GPT API access.
 The following scripts will run inference and GPT evaluation using OpenAI batches and ```gpt-3.5-turbo```.
 
-```
+```sh
 # In parallel, run inference jobs.
 python scripts/eval_openended.py --model_path ${CKPT_NAME} --eval_dataset ${BENCHMARK} \
       --num_chunks $CHUNKS \
@@ -131,7 +133,7 @@ python scripts/eval_gpt_batch.py \
 
 For MCQ based tasks, we use the following script:
 
-```
+```sh
 python scripts/eval_mcq.py --model_path ${CKPT_NAME} --eval_dataset ${BENCHMARK} \
       --num_chunks $3 \
       --chunk_idx $SLURM_ARRAY_TASK_ID \
