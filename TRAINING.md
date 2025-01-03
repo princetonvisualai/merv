@@ -23,8 +23,8 @@ data/download/videollava
     └── ...
 ```
 
-## Training
-```
+## Example Training Script
+```sh
 ID="merv-run"
 
 torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \

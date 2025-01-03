@@ -126,7 +126,7 @@ For open-ended QA, first, create a file ``.oai_keys.yaml`` with the following co
 Then edit ```scripts/eval_gpt.py``` according to which API provider you use.
 The following scripts will run inference and GPT evaluation.
 
-```
+```sh
 # In parallel, run inference jobs.
 python scripts/eval_openended.py --model_path ${CKPT_NAME} --eval_dataset ${BENCHMARK} \
       --num_chunks $CHUNKS \
@@ -142,7 +142,7 @@ python scripts/eval_gpt.py \
 
 For MCQ based tasks, we use the following script:
 
-```
+```sh
 python scripts/eval_mcq.py --model_path ${CKPT_NAME} --eval_dataset ${BENCHMARK} \
       --num_chunks $3 \
       --chunk_idx $SLURM_ARRAY_TASK_ID \
