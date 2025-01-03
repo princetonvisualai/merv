@@ -103,7 +103,7 @@ def evaluate(cfg: EvalConfig) -> None:
 
     if os.path.exists(
         "./eval_result" / cfg.model_path / f"{cfg.eval_dataset}_pred_{cfg.num_chunks}_{cfg.chunk_idx}_done.jsonl"
-    ):
+    ):  # if the chunk is already done, add the video id to the done list
         done = [
             line
             for line in open(
@@ -115,7 +115,7 @@ def evaluate(cfg: EvalConfig) -> None:
 
     elif os.path.exists(
         "./eval_result" / cfg.model_path / f"{cfg.eval_dataset}_pred_{cfg.num_chunks}_{cfg.chunk_idx}.jsonl"
-    ):
+    ): # if its not done, but file exists, then add the video id to the done list
         done = [
             line
             for line in open(
@@ -126,6 +126,8 @@ def evaluate(cfg: EvalConfig) -> None:
         questions = [item for item in questions if (item["question_id"] not in done_ids)]
 
     else:
+        # if there are files with different chunk_num, (e.g., Previously ran with 4 chunks, now running with 8 chunks)
+        # go through all of them and add the video id to the done list. 
         previous_jsonls = set(
             glob.glob(str("./eval_result" / cfg.model_path / f"{cfg.eval_dataset}_pred_*.jsonl"))
         ) - set(glob.glob(str("./eval_result" / cfg.model_path / f"{cfg.eval_dataset}_pred_{cfg.num_chunks}_*.jsonl")))
