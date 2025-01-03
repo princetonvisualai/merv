@@ -1,6 +1,6 @@
 # Unifying Specialized Visual Encoders for Video Language Models
 
-[![arXiv](https://img.shields.io/badge/arXiv-XXX.XXX-df2a2a.svg?style=for-the-badge)](https://arxiv.org/abs/XXX.XXX)
+[![arXiv](https://img.shields.io/badge/arXiv-2501.01426-df2a2a.svg?style=for-the-badge)](https://arxiv.org/abs/2501.01426)
 [![Website](https://img.shields.io/badge/project-page-blue?style=for-the-badge)](https://tylerzhu.com/merv/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.1.0-EE4C2C.svg?style=for-the-badge&logo=pytorch)](https://pytorch.org/get-started/locally/)
 [![Python](https://img.shields.io/badge/python-3.10-blue?style=for-the-badge)](https://www.python.org)
@@ -56,7 +56,7 @@ If you run into any problems during the installation process, please file a GitH
 
 To run our models in inference, we suggest having at least 80GB of CPU memory and 24GB of GPU memory for inference. 
 We have tested our model on a single RTX 3090.
-See [```scripts/quick_start.py```](scripts/quick_start.py) for a simple example (shown below), and [```merv/models/registry.py```](merv/models/registry.py) for a list of available models: our two main models ```merv``` and ```merv-full```, as well as some single encoder baselines for testing.
+See [```scripts/quick_start.py```](scripts/quick_start.py) for a simple example (shown below), and [```merv/models/registry.py```](merv/models/registry.py) for a list of available models: our two main models ```merv-frozen``` and ```merv-full```, as well as some single encoder baselines for testing.
 
 ```python
 from pathlib import Path
@@ -160,7 +160,7 @@ If you find our work useful, please cite our paper.
       title={Unifying Specialized Visual Encoders for Video Language Models},
       author={Jihoon Chung and Tyler Zhu and Max Gonzalez Saez-Diez and Juan Carlos Niebles and Honglu Zhou and Olga Russakovsky},
       year={2024},
-      eprint={2306.XXXX},
+      eprint={2501.01426},
       archivePrefix={arXiv},
       primaryClass={cs.LG}
 }
