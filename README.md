@@ -147,10 +147,10 @@ where strategy describes the strategy for the MCQ task (by default is naive), as
 ## Citation
 If you find our work useful, please cite our paper.
 ```
-@misc{chung2024unifying,
+@misc{chung2025unifying,
       title={Unifying Specialized Visual Encoders for Video Language Models},
       author={Jihoon Chung and Tyler Zhu and Max Gonzalez Saez-Diez and Juan Carlos Niebles and Honglu Zhou and Olga Russakovsky},
-      year={2024},
+      year={2025},
       eprint={2501.01426},
       archivePrefix={arXiv},
       primaryClass={cs.LG}
