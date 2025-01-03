@@ -23,14 +23,34 @@ data/download/videollava
     └── ...
 ```
 
-## Training
-```
+## Example Training Script
+Here is a bare-bones shell script one can use to launch reproduction of our method.
+```sh
 ID="merv-run"
 
 torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
   --run_id $ID \
   --model.model_id $ID \
-  --model.type "merv-base-recipe" \
+  --model.type "merv-base" \
+  --dataset.type "videollava" \
+  --stage finetune 
+```
+
+To modify some parameters, feel free to adjust any of the configs outlined in ```merv/conf/models.py```.
+For example, to swap out the encoders and adjust the projector token length from 64 to 16, you can run 
+
+```sh
+ID="merv-novel"
+
+# Visual_feature_length = Projector_token_length x temporal_resolution (i.e. # of frames after encoding)
+torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
+  --run_id $ID \
+  --model.model_id $ID \
+  --model.type "merv-base" \
+  --model.video_backbone_ids ['languagebind-video-noclass','dinov2-video-all-tokens','hiera-base-plus-video','siglip-vit-b16-224px-all-no-cls'] \
+  --model.num_frames [16,16,32,16] \
+  --model.projector_token_length 16 \
+  --model.visual_feature_length 256 \
   --dataset.type "videollava" \
   --stage finetune 
 ```

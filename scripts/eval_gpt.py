@@ -1,26 +1,23 @@
 import argparse
 import ast
-import asyncio
 import json
 import os
-import random
-
+import time
 import openai
-import yaml
 from tqdm import tqdm
-
+import io
+import asyncio
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="question-answer-generation-using-gpt-3")
-    parser.add_argument("--pred_path", default=r"", help="The path to file containing prediction.")
-    parser.add_argument("--output_file", default=r"", help="The path to save annotation json files.")
+    parser = argparse.ArgumentParser(description="question-answer-generation-using-gpt-4o-mini")
+    parser.add_argument("--ckpt-name", default=r"", help="Name of checkpoint.")
+    parser.add_argument("--benchmark", default=r"", help="Benchmark.")
     args = parser.parse_args()
     return args
 
-
-async def run(message, qa_set, completed_files, key, client, openai_modelname):
+async def run(message, qa_set, completed_files, key, client):
     try:
-        completion = client.chat.completions.create(model=openai_modelname, messages=message, max_tokens=500)
+        completion = client.chat.completions.create(model="gpt-4o-mini-2024-07-18", messages=message, max_tokens=500)
 
         response = await completion
         response = response.dict()
@@ -58,30 +55,8 @@ async def run(message, qa_set, completed_files, key, client, openai_modelname):
         print(type(e))
         print(f"Error processing file '{key}': {e}")
 
-
-async def annotate(prediction_set, caption_files, completed_files, args):
-    """
-    Evaluates question and answer pairs using GPT-3
-    Returns a score for correctness.
-    """
-    # Set the OpenAI API key.
-    openai_api_info = yaml.safe_load(open(".oai_keys.yaml"))
-    if len(openai_api_info["api_keys"]) == 0:
-        raise ValueError("No OpenAI API keys found in .oai_keys.yaml")
-
-    # Pick a random api key for load balancing
-    api = random.choice(openai_api_info["api_keys"])
-
-    openai.api_key = api["api_key"]
-    client = openai.AsyncAzureOpenAI(
-        api_key=api["api_key"],
-        api_version=api["api_version"],
-        azure_endpoint=api["azure_endpoint"],
-    )
-
-    openai_modelname = "gpt-35-turbo"
+async def annotate(client, prediction_set, caption_files, completed_files, args):
     cs = []
-
     skip_due_to_contentfilters = set()
     for file in tqdm(caption_files):
         key = file
@@ -113,10 +88,9 @@ async def annotate(prediction_set, caption_files, completed_files, args):
                 "For example, your response should look like this: {'pred': 'yes', 'score': 4.8}.",
             },
         ]
+        cs.append(asyncio.create_task(run(messages, qa_set, completed_files, key, client)))
 
-        cs.append(asyncio.create_task(run(messages, qa_set, completed_files, key, client, openai_modelname)))
-
-        if len(cs) > 20:
+        if len(cs) > 500:
             rs = await asyncio.gather(*cs)
             cs = []
 
@@ -128,20 +102,26 @@ async def annotate(prediction_set, caption_files, completed_files, args):
 
     return skip_due_to_contentfilters
 
-
 def main():
-    """
-    Main function to control the flow of the program.
-    """
-    # Parse arguments.
+    
     args = parse_args()
 
-    if not os.path.exists(args.pred_path):
-        print("File", args.pred_path, "does not exist")
+    pred_path = f"eval_result/{args.ckpt_name}/{args.benchmark}_pred_merge.jsonl"
+    gpt_batch_output_path = f"eval_result/{args.ckpt_name}/{args.benchmark}_gpt.json"
+
+    with open(".openai_key") as f:
+        OPENAI_KEY = f.read().strip()
+    if len(OPENAI_KEY) == 0:
+        raise ValueError("No OpenAI API keys found in .openai_key")
+    client = openai.AsyncOpenAI(api_key=OPENAI_KEY)
+    if not os.path.exists(pred_path):
+        print("File", pred_path, "does not exist")
         exit()
 
-    file = open(args.pred_path)
+
+    file = open(pred_path)
     new_pred_contents = [eval(i.strip()) for i in file.readlines()]
+    file.close()
 
     # Generating list of id's and corresponding files
     id_list = [x["question_id"] for x in new_pred_contents]
@@ -149,22 +129,21 @@ def main():
     # Preparing dictionary of question-answer sets
     prediction_set = {}
     for sample in new_pred_contents:
-        id = sample["question_id"]
+        q_id = sample["question_id"]
         question = sample["question"]
         answer = sample["answer"]
         pred = sample["pred"]
         qa_set = {"q": question, "a": answer, "pred": pred}
-        prediction_set[id] = qa_set
+        prediction_set[q_id] = qa_set
 
-    # While loop to ensure that all captions are processed.
-
+    
     num_incomplete_files = []
     skip_due_to_contentfilters = set()
     while True:
         # Files that have not been processed yet.
         print(f"content filter files: {len(skip_due_to_contentfilters)}")
-        completed_files = json.load(open(args.output_file)) if os.path.exists(args.output_file) else {}
-        json.dump(completed_files, open(args.output_file, "w"))
+        completed_files = json.load(open(gpt_batch_output_path)) if os.path.exists(gpt_batch_output_path) else {}
+        json.dump(completed_files, open(gpt_batch_output_path, "w"))
         print(f"completed_files: {len(completed_files)}")
 
         # Files that have not been processed yet.
@@ -175,28 +154,26 @@ def main():
         if len(incomplete_files) == 0:
             break
 
-        rs = asyncio.run(annotate(prediction_set, incomplete_files, completed_files, args))
-
+        rs = asyncio.run(annotate(client, prediction_set, incomplete_files, completed_files, args))
         skip_due_to_contentfilters = skip_due_to_contentfilters.union(rs)
 
-        # if incomplete_file is
+        # if incomplete_file is repeatly the same, break the loop. 
         num_incomplete_files.append(len(incomplete_files))
-
         if len(num_incomplete_files) > 10:
             if all([i == len(incomplete_files) for i in num_incomplete_files[-10:]]):
                 break
 
-        json.dump(completed_files, open(args.output_file, "w"))
+        json.dump(completed_files, open(gpt_batch_output_path, "w"))
 
-    # Combine all the processed files into one
+
     combined_contents = {}
-    combined_contents = json.load(open(args.output_file))
+    combined_contents = json.load(open(gpt_batch_output_path))
 
     score_sum = 0
     count = 0
     yes_count = 0
     no_count = 0
-    for key, result in tqdm(combined_contents.items()):
+    for key, result in combined_contents.items():
         # Computing score
         count += 1
         try:
@@ -216,11 +193,11 @@ def main():
 
     average_score = score_sum / count
     accuracy = yes_count / (yes_count + no_count)
-    print("Yes count:", yes_count)
+    print("\nYes count:", yes_count)
     print("No count:", no_count)
     print("Accuracy:", accuracy)
     print("Average score:", average_score)
 
-
+    
 if __name__ == "__main__":
     main()

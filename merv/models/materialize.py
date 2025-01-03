@@ -13,6 +13,7 @@ from merv.models.backbones.llm import LLaMa2LLMBackbone, LLaMa3LLMBackbone, LLaM
 from merv.models.backbones.video import (
     DinoV2VideoBackbone,
     LangBindVideoBackbone,
+    HieraVideoBackbone,
     SiglipVideoBackbone,
     VideoBackbone,
     VideoTransform,
@@ -61,6 +62,14 @@ VIDEO_BACKBONES = {
     "siglip-vit-so400m-all-tokens": {"cls": SiglipVideoBackbone, "kwargs": {"default_image_size": 224}},
     "siglip-vit-so400m-384px": {"cls": SiglipVideoBackbone, "kwargs": {"default_image_size": 224}},
     "siglip-vit-so400m-384px-all-tokens": {"cls": SiglipVideoBackbone, "kwargs": {"default_image_size": 224}},
+
+    # === Hiera Video Backbone ===
+    "hiera-base-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-base-video-noft": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-base-plus-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-base-plus-video-noft": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-large-video": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
+    "hiera-large-video-noft": {"cls": HieraVideoBackbone, "kwargs": {"default_image_size": 224}},
 }
 
 
@@ -142,7 +151,7 @@ def get_vidlm(
     arch_specifier: str,
     video_backbones: List[VideoBackbone],
     llm_backbone: LLMBackbone,
-    adapter: Optional[str],
+    feature_fusion: Optional[str],
     projector_token_length: int,
     visual_feature_length: int,
     enable_mixed_precision_training: bool = True,
@@ -154,7 +163,7 @@ def get_vidlm(
         llm_backbone,
         enable_mixed_precision_training=enable_mixed_precision_training,
         arch_specifier=arch_specifier,
-        adapter=adapter,
+        feature_fusion=feature_fusion,
         projector_token_length=projector_token_length,
         visual_feature_length=visual_feature_length,
     )
