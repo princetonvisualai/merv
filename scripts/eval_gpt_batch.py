@@ -9,7 +9,7 @@ import io
 
 def parse_args():
     parser = argparse.ArgumentParser(description="question-answer-generation-using-gpt-4o-mini")
-    parser.add_argument("--ckpt-name", default=r"", help="Name of checkpoint.")
+    parser.add_argument("--ckpt_name", default=r"", help="Name of checkpoint.")
     parser.add_argument("--benchmark", default=r"", help="Benchmark.")
     args = parser.parse_args()
     return args
