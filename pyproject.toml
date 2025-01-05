@@ -27,6 +27,7 @@ dependencies = [
     "draccus @ git+https://github.com/dlwh/draccus",
     "decord",
     "einops",
+    "hiera-transformer",
     "huggingface_hub>=0.24.6",
     "jsonlines",
     "ninja", # for flash_attn

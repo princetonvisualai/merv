@@ -27,7 +27,7 @@ transform_dict = {
     "video": LanguageBindVideoProcessor,
     "image": LanguageBindImageProcessor,
 }
-HF_HOME = os.getenv("HF_HOME", "~/.cache/huggingface")
+HF_HUB_CACHE = os.getenv("HF_HUB_CACHE", "~/.cache/huggingface/hub")
 
 
 class LangBindVideoBackbone(VideoBackbone):
@@ -59,7 +59,7 @@ class LangBindVideoBackbone(VideoBackbone):
         self.token = token
         self.featurizer = LanguageBindVideo.from_pretrained(
             "LanguageBind/LanguageBind_Video_merge", 
-            cache_dir=HF_HOME,
+            cache_dir=HF_HUB_CACHE,
         ).vision_model
         assert image_resize_strategy == "resize-naive"
 

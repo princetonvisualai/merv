@@ -8,11 +8,11 @@ Exhaustive list of pretrained VidLMs (with full descriptions / links to correspo
 # fmt: off
 MODEL_REGISTRY = {
     # === Base MERV Config ===
-    "merv-base": {
-        "model_id": "merv-base",
-        "names": ["MERV Base"],
+    "merv-frozen": {
+        "model_id": "merv-frozen",
+        "names": ["MERV Frozen"],
         "description": {
-            "name": "MERV Base",
+            "name": "MERV Frozen",
             "optimization_procedure": "single-stage",
             "visual_representation": "LanguageBind, DINO, SigLIP, ViViT",
             "image_processing": "Letterbox",
