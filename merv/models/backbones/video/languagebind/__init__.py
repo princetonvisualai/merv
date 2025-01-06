@@ -27,7 +27,7 @@ transform_dict = {
     "video": LanguageBindVideoProcessor,
     "image": LanguageBindImageProcessor,
 }
-HF_HUB_CACHE = os.getenv("HF_HUB_CACHE", "~/.cache/huggingface/hub")
+HF_HUB_CACHE = os.getenv("HF_HUB_CACHE", os.path.expanduser("~/.cache/huggingface/hub"))
 
 
 class LangBindVideoBackbone(VideoBackbone):
