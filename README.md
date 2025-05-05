@@ -45,7 +45,7 @@ ninja --version; echo $?
 
 # Install Flash Attention 2
 #   =>> If you run into difficulty, try `pip cache remove flash_attn` first
-pip install flash-attn --no-build-isolation
+pip install flash-attn==2.5.9.post1 --no-build-isolation
 ```
 
 Additionally, request access [here](https://huggingface.co/meta-llama/Llama-2-7b-hf) to use LLaMA-2 and generate an access token and put it in `.hf_token`

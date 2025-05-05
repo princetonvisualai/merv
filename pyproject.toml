@@ -24,7 +24,7 @@ classifiers = [
 ]
 dependencies = [
     "accelerate>=0.25.0",
-    "draccus @ git+https://github.com/dlwh/draccus",
+    "draccus @ git+https://github.com/dlwh/draccus.git@c5b0c5ee7ec6e9a05ad5479a21fc0aae019318d3",
     "decord",
     "einops",
     "hiera-transformer",
