@@ -37,11 +37,10 @@ overwatch = initialize_overwatch(__name__)
 @dataclass
 class EvalConfig:
     # fmt: off
-    model_path: Union[str, Path] = (                                    # Path to Pretrained VidLM (on disk or HF Hub)
-        "merv"
-    )
-
-    hf_token: Union[str, Path] = Path(".hf_token")                      # Environment variable or Path to HF Token
+    model_path: Union[str, Path] = "merv-full"                    # Path to Pretrained VidLM (on disk or HF Hub)
+                                                                  # e.g. "merv-full" for HuggingFace Hub
+                                                                  # or "trainID" for "runs/trainID/checkpoints/latest-checkpoint.pt"
+    hf_token: Union[str, Path] = Path(".hf_token")                # Environment variable or Path to HF Token
 
     # Default Generation Parameters =>> subscribes to HuggingFace's GenerateMixIn API
     do_sample: bool = False
@@ -49,58 +48,58 @@ class EvalConfig:
     max_new_tokens: int = 512
     min_length: int = 1
     eval_dataset: str = "MSVD"
-    num_chunks: int = 1
-    chunk_idx: int = 0
-    filename_question: str = 'test_q'
-    filename_answer: str = 'test_a'
-    full_path_ckpt: Union[str, Path] = None
-
+    num_chunks: int = 1                        # Number of parallelization
+    chunk_idx: int = 0                         # Parallelization index
+    filename_question: str = 'test_q'          # filename for the question
+    filename_answer: str = 'test_a'            # filename for the answer
 
 @draccus.wrap()
 def evaluate(cfg: EvalConfig) -> None:
+    #### LOAD EVAL DATASET ####
     cfg.model_path = Path(cfg.model_path)
-
-    if cfg.full_path_ckpt is None:
-        cfg.full_path_ckpt = "runs" / cfg.model_path
-    else:
-        cfg.full_path_ckpt = Path(cfg.full_path_ckpt)
-    print(cfg)
-
     os.makedirs("./eval_result" / cfg.model_path, exist_ok=True)
-
-    # load model
-    hf_token = Path(".hf_token").read_text().strip()
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-
-    vidlm = load_vid(cfg.full_path_ckpt, hf_token=hf_token)
-    vidlm = vidlm.to(device, dtype=torch.bfloat16)
-
-    # load saved cfg. (This is done inside load_vid, but we do again)
-    loaded_cfg = json.load(open(cfg.full_path_ckpt / "config.json", "r"))
-
-    loaded_cfg["model"].pop("type", None)
-    loaded_cfg["model"].pop("vidlm_id", None)
-    model_cfg = ModelConfig.get_choice_class(ModelRegistry.MERV_BASE.model_id)(**loaded_cfg["model"])
-
-    # Get statistics like FLOPs, Params
-    if not os.path.exists("./eval_result" / cfg.model_path / "flops.json"):
-        overwatch.info("Getting model statistics: FLOPs + Params")
-        macs, params = get_statistics(vidlm=vidlm, num_frames=model_cfg.num_frames)
-        overwatch.info(f"Model FLOPs: {macs}, Params: {params}")
-        json.dump({"macs": macs, "params": params}, open("./eval_result" / cfg.model_path / "flops.json", "w"))
 
     benchmark = cfg.eval_dataset.replace("_token", "")
     filename_q = cfg.filename_question
     filename_a = cfg.filename_answer
 
     questions = json.load(open(f"./eval_data/{benchmark}/{filename_q}.json"))
+    print(f"Number of Questions in {benchmark}: {len(questions)}")
     all_questions_id = set([item["question_id"] for item in questions])
     questions = get_chunk(questions, cfg.num_chunks, cfg.chunk_idx)
-    print("{} has length {}".format(cfg.chunk_idx, len(questions)))
+    print(f"Number of Questions in {benchmark} that this machine has to run: {len(questions)}")
 
     answers = json.load(open(f"./eval_data/{benchmark}/{filename_a}.json"))
     answers_dict = {item["question_id"]: item for item in answers}
 
+    #### LOAD MODEL ####
+    hf_token = Path(".hf_token").read_text().strip()
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    if os.path.exists(os.path.join('runs', cfg.model_path)):
+        
+        cfg.full_path_ckpt = "runs" / cfg.model_path
+        print('Loading checkpoint from local path', str(cfg.full_path_ckpt))
+
+        loaded_cfg = json.load(open(cfg.full_path_ckpt / "config.json", "r"))
+        loaded_cfg["model"].pop("type", None)
+        loaded_cfg["model"].pop("vidlm_id", None)
+        model_cfg = ModelConfig.get_choice_class(ModelRegistry.MERV_BASE.model_id)(**loaded_cfg["model"])
+        vidlm = load_vid(cfg.full_path_ckpt, hf_token=hf_token)
+
+    else:
+        print('Loading checkpoint from HuggingFace Hub', str(cfg.model_path))
+        vidlm, model_cfg = load_vid(str(cfg.model_path), hf_token=hf_token, get_model_cfg=True)
+
+    vidlm.to(device, dtype=torch.bfloat16)
+
+    #### Get statistics like FLOPs, Params ####
+    if not os.path.exists("./eval_result" / cfg.model_path / "flops.json"):
+        overwatch.info("Getting model statistics: FLOPs + Params")
+        macs, params = get_statistics(vidlm=vidlm, num_frames=model_cfg.num_frames)
+        overwatch.info(f"Model FLOPs: {macs}, Params: {params}")
+        json.dump({"macs": macs, "params": params}, open("./eval_result" / cfg.model_path / "flops.json", "w"))
+
+    #### CONTINUE EVAL ####
     if os.path.exists(
         "./eval_result" / cfg.model_path / f"{cfg.eval_dataset}_pred_{cfg.num_chunks}_{cfg.chunk_idx}_done.jsonl"
     ):  # if the chunk is already done, add the video id to the done list
@@ -171,16 +170,15 @@ def evaluate(cfg: EvalConfig) -> None:
                 generated_text = vidlm.generate(
                     video_name,
                     prompt_text,
-                    do_sample=False,
-                    temperature=1.0,
-                    max_new_tokens=512,
-                    min_length=1,
+                    do_sample=cfg.do_sample,
+                    temperature=cfg.temperature,
+                    max_new_tokens=cfg.max_new_tokens,
+                    min_length=cfg.min_length,
                     num_frames=model_cfg.num_frames,
                 )
 
                 question["pred"] = generated_text
                 question["message"] = message
-
                 question = {**question, **answers_dict[question["question_id"]]}
 
                 f.write(json.dumps(question) + "\n")
@@ -215,17 +213,6 @@ def evaluate(cfg: EvalConfig) -> None:
                 f.write(json.dumps(item) + "\n")
         for jsonl in all_jsonls:
             os.remove(jsonl)
-
-    elif benchmark == "partial" and len(all_questions_id - set(all_done_items.keys())) < 50:
-        print("merging for partial")
-        with open("./eval_result" / cfg.model_path / f"{cfg.eval_dataset}_pred_merge.jsonl", "w") as f:
-            for item in all_done_items.values():
-                f.write(json.dumps(item) + "\n")
-        for jsonl in all_jsonls:
-            os.remove(jsonl)
-
-    else:
-        print(len(all_done_items.keys()), len(all_questions_id))
 
 
 if __name__ == "__main__":

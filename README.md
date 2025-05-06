@@ -1,4 +1,4 @@
-# Unifying Specialized Visual Encoders for Video Language Models
+# Unifying Specialized Visual Encoders for Video Language Models (ICML 2025)
 
 [![arXiv](https://img.shields.io/badge/arXiv-2501.01426-df2a2a.svg?style=for-the-badge)](https://arxiv.org/abs/2501.01426)
 [![Website](https://img.shields.io/badge/project-page-blue?style=for-the-badge)](https://tylerzhu.com/merv/)
@@ -101,59 +101,16 @@ The training instruction is in [TRAINING.md](TRAINING.md)
 
 ## Evaluation
 
-We evaluate on a diverse set of tasks.
-* MSVD, MSRVTT, TGIF, and ActivityNet preparation follow that of [Video-LLaVA](https://github.com/PKU-YuanGroup/Video-LLaVA/blob/main/TRAIN_AND_VALIDATE.md).
-* Perception Test can be found [here](https://github.com/google-deepmind/perception_test).
-* NExT-QA, VLEP, TVQA preparation follow that of [SeViLA](https://github.com/Yui010206/SeViLA?tab=readme-ov-file).
-
-We follow the Video-ChatGPT protocol for evaluation, but our prompts are the same as Video-LLaVA for consistency in comparison.
-Note that the API model is always subject to change; we used ``gpt-3.5-turbo-0613`` for GPT evaluation, but this is no longer available through OpenAI.
-Instead, we provide API usage of ``gpt-4o-mini`` as per OpenAI's recommendation, but this was not stable for us and did not reproduce standard results.
-Further investigation in needed in this area.
-
-We provide some example scripts for evaluation.
-We run inference in parallel, and then we run GPT evaluation once all of the inference is done.
-
-For open-ended QA, first, create a file ``.openai_key`` with your OpenAI api key for GPT API access.
-The following scripts will run inference and GPT evaluation using OpenAI batches and ```gpt-3.5-turbo```.
-
-```sh
-# In parallel, run inference jobs.
-python scripts/eval_openended.py --model_path ${CKPT_NAME} --eval_dataset ${BENCHMARK} \
-      --num_chunks $CHUNKS \
-      --chunk_idx $CHUNK_ID
-
-... wait for all jobs to finish ...
-
-# Then run GPT on the results; API keys taken from .oai_keys.yaml
-python scripts/eval_gpt_batch.py \
-    --ckpt_name ${CKPT_NAME} \
-    --benchmark ${BENCHMARK}
-```
-
-For MCQ based tasks, we use the following script:
-
-```sh
-python scripts/eval_mcq.py --model_path ${CKPT_NAME} --eval_dataset ${BENCHMARK} \
-      --num_chunks $3 \
-      --chunk_idx $SLURM_ARRAY_TASK_ID \
-      --filename_question ${FILENAMEQUESTION}\
-      --filename_answer ${FILENAMEANSWER} \
-      --full_path_ckpt ${FULLPATH} \
-      --strategy ${STRATEGY}
-```
-where strategy describes the strategy for the MCQ task (by default is naive), as GPT is not necessary.
+The evaulation instruction is in [EVALUATION.md](EVALUATION.md)
 
 ## Citation
 If you find our work useful, please cite our paper.
 ```
-@misc{chung2025unifying,
+@inproceedings{chung2025unifying,
       title={Unifying Specialized Visual Encoders for Video Language Models},
       author={Jihoon Chung and Tyler Zhu and Max Gonzalez Saez-Diez and Juan Carlos Niebles and Honglu Zhou and Olga Russakovsky},
+      booktitle = {International Conference on Machine Learning (ICML)},
       year={2025},
-      eprint={2501.01426},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG}
 }
 ```
 

@@ -148,7 +148,6 @@ cache/
 cache_dir/
 data/
 runs/
-eval_data/
 eval_result/
 data
 pyrightconfig.json
@@ -156,4 +155,8 @@ pyrightconfig.json
 
 *eval_results*/
 slurm/
-eval_data
+
+# eval_data/
+eval_data/*
+!eval_data/dummy_mcq
+!eval_data/dummy_openended

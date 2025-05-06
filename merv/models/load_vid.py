@@ -47,7 +47,7 @@ def get_model_description(model_id_or_name: str) -> str:
 
 # === Load Pretrained Model ===
 def load_vid(
-    model_id_or_path: Union[str, Path], hf_token: Optional[str] = None, cache_dir: Optional[Union[str, Path]] = None
+    model_id_or_path: Union[str, Path], hf_token: Optional[str] = None, cache_dir: Optional[Union[str, Path]] = None, get_model_cfg: bool = False
 ) -> MERV:
     """Loads a pretrained MERV from either local disk."""
     if os.path.isdir(model_id_or_path):
@@ -121,4 +121,7 @@ def load_vid(
         projector_token_length=model_cfg.projector_token_length,
     )
 
-    return vidlm
+    if get_model_cfg:
+        return vidlm, model_cfg
+    else:
+        return vidlm
