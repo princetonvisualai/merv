@@ -54,3 +54,31 @@ torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
   --dataset.type "videollava" \
   --stage finetune 
 ```
+
+To use different backbone try following:
+
+```sh
+ID="merv-run-qwen2.5"
+
+torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
+  --run_id $ID \
+  --model.model_id $ID \
+  --model.finetune_per_device_batch_size 2 \
+  --model.llm_backbone_id "qwen2.5-7b-instruct" \
+  --model.type "merv-base" \
+  --dataset.type "videollava" \
+  --stage finetune 
+```
+
+```sh
+ID="merv-run-llama3.1"
+
+torchrun --standalone --nnodes 1 --nproc-per-node 8 scripts/pretrain_video.py \
+  --run_id $ID \
+  --model.model_id $ID \
+  --model.llm_backbone_id "llama3.1-8b-chat" \
+  --model.finetune_per_device_batch_size 4 \
+  --model.type "merv-base" \
+  --dataset.type "videollava" \
+  --stage finetune 
+```

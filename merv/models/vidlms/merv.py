@@ -517,6 +517,9 @@ class MERV(VidLM):
     ) -> CausalLMOutputWithPast:
         """Run a forward pass through the VidLM, returning a CausalLMOutputWithPast instance (contains loss)."""
 
+        # QWEN2.5-7B-INSTRUCT has no BOS token
+        bos_token_length = 1 if self.llm_backbone.tokenizer.bos_token is not None else 0
+
         # Handle Inference (leverage cache, short-circuit on just LLM forward)
         if input_ids.shape[1] == 1 and past_key_values is not None:
             # We're leveraging the cache, so just redirect to `self.llm_backbone` with `input_ids` and `past_key_values`
@@ -629,9 +632,9 @@ class MERV(VidLM):
         # Build Multimodal Embeddings (and build resulting attention mask)
         multimodal_embeddings = torch.cat(
             [
-                input_embeddings[multimodal_indices, :1, :],
+                input_embeddings[multimodal_indices, :bos_token_length, :],
                 projected_patch_embeddings,
-                input_embeddings[multimodal_indices, 1:, :],
+                input_embeddings[multimodal_indices, bos_token_length:, :],
             ],
             dim=1,
         )
@@ -639,9 +642,9 @@ class MERV(VidLM):
         if attention_mask is not None:
             multimodal_attention_mask = torch.cat(
                 [
-                    attention_mask[multimodal_indices, :1],
+                    attention_mask[multimodal_indices, :bos_token_length],
                     projected_patch_attention_mask,
-                    attention_mask[multimodal_indices, 1:],
+                    attention_mask[multimodal_indices, bos_token_length:],
                 ],
                 dim=1,
             )
@@ -657,7 +660,7 @@ class MERV(VidLM):
                 device=labels.device,
             )
             multimodal_labels = torch.cat(
-                [labels[multimodal_indices, :1], projected_patch_labels, labels[multimodal_indices, 1:]], dim=1
+                [labels[multimodal_indices, :bos_token_length], projected_patch_labels, labels[multimodal_indices, bos_token_length:]], dim=1
             )
 
         # === Add Unimodal Handling ===

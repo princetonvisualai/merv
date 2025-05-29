@@ -9,7 +9,7 @@ from typing import List, Optional, Tuple
 
 from transformers import PreTrainedTokenizerBase
 
-from merv.models.backbones.llm import LLaMa2LLMBackbone, LLaMa3LLMBackbone, LLaMA31LLMBackbone, LLMBackbone
+from merv.models.backbones.llm import LLaMa2LLMBackbone, LLaMa3LLMBackbone, LLaMA31LLMBackbone, LLMBackbone, Qwen2LLMBackbone
 from merv.models.backbones.video import (
     DinoV2VideoBackbone,
     LangBindVideoBackbone,
@@ -93,6 +93,11 @@ LLM_BACKBONES = {
 
     # === LLaMa-3.1 Chat Backbones ===
     "llama3.1-8b-chat": {"cls": LLaMA31LLMBackbone, "kwargs": {}},
+    
+    # === Qwen-2.5-Chat Backbones ===
+    "qwen2.5-7b-instruct": {"cls": Qwen2LLMBackbone, "kwargs": {}},
+    "qwen2.5-3b-instruct": {"cls": Qwen2LLMBackbone, "kwargs": {}},
+
 }
 
 

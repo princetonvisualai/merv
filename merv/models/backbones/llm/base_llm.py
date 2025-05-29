@@ -118,11 +118,12 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
             self.llm = llm_cls.from_pretrained(
                 hf_hub_path,
                 token=hf_token,
-                use_flash_attention_2=use_flash_attention_2 if not self.inference_mode else False,
+                attn_implementation = "flash_attention_2" if not self.inference_mode else "sdpa",
                 # The following parameters are set to prevent `UserWarnings` from HF; we want greedy decoding!
                 do_sample=False,
-                temperature=1.0,
-                top_p=1.0,
+                temperature=None,
+                top_p=None,
+                top_k=None,
             )
 
         # [Contract] `inference_mode` means we're loading from a pretrained checkpoint; no need to load base weights!
@@ -179,12 +180,13 @@ class HFCausalLLMBackbone(LLMBackbone, ABC):
         # As a result we explicitly validate that a tokenizer conforms to the expected behavior; if you're reading this
         # line, it's probably because you're adding a new LLM with a different tokenizer behavior. If so, feel free to
         # override this, but make sure to make the appropriate changes in the `datasets.py` and VidLM `forward()` logic!
-        assert (self.tokenizer("Testing 123", add_special_tokens=True).input_ids[0] == self.tokenizer.bos_token_id) and (
-            self.tokenizer("Testing 123", add_special_tokens=False).input_ids[0] != self.tokenizer.bos_token_id
-        ), (
-            f"Default Tokenizer of type `{type(self.tokenizer)}` does not automatically prefix inputs with BOS token!\n"
-            "Please read the comment in `base_llm.py` for more information!"
-        )
+        # assert (self.tokenizer("Testing 123", add_special_tokens=True).input_ids[0] == self.tokenizer.bos_token_id) and (
+        #     self.tokenizer("Testing 123", add_special_tokens=False).input_ids[0] != self.tokenizer.bos_token_id
+        # ), (
+        #     f"Default Tokenizer of type `{type(self.tokenizer)}` does not automatically prefix inputs with BOS token!\n"
+        #     "Please read the comment in `base_llm.py` for more information!"
+        # )
+        ## Above code is removed to support Qwen2.5 
 
         # Additionally, explicitly verify that Tokenizer padding_side is set to right for training!
         assert self.tokenizer.padding_side == "right", "Tokenizer `padding_side` is not set to `right`!"
