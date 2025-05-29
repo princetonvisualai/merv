@@ -140,6 +140,7 @@ def evaluate(cfg: EvalConfig) -> None:
 
             clip_start_sec = question["time"][0] if "time" in question else 0.0
             clip_end_sec = question["time"][1] if "time" in question else None
+            end_frame = question["end_frame"] if "end_frame" in question else None
 
             print(video_name)
             generated_text = vidlm.generate(
@@ -152,6 +153,7 @@ def evaluate(cfg: EvalConfig) -> None:
                 num_frames=model_cfg.num_frames,
                 clip_start_sec=clip_start_sec,
                 clip_end_sec=clip_end_sec,
+                end_frame=end_frame,
             )
 
             question["pred"] = generated_text

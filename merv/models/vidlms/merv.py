@@ -792,9 +792,10 @@ class MERV(VidLM):
         elif video is not None:
             clip_start_sec = kwargs.pop("clip_start_sec", 0.0)
             clip_end_sec = kwargs.pop("clip_end_sec", None)
+            end_frame = kwargs.pop("end_frame", None)
 
             video = load_video(
-                video, clip_start_sec=clip_start_sec, clip_end_sec=clip_end_sec, num_frames=max(num_frames)
+                video, clip_start_sec=clip_start_sec, clip_end_sec=clip_end_sec, num_frames=max(num_frames), end_frame=end_frame
             )
             video_values = [
                 video_transform(video[:: max(num_frames) // num_frame]).unsqueeze(0).to(self.device)

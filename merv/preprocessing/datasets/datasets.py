@@ -38,6 +38,7 @@ def load_video(
     clip_start_sec=0.0,
     clip_end_sec=None,
     num_frames=8,
+    end_frame=None,
 ) -> torch.Tensor:
     # very annoying: test set in TVQA has one nan, nan pair
     # For Hound, we need to add a special load since the videos are provided as frames
@@ -127,13 +128,30 @@ def load_video(
             total_secs = video_num_frames / avg_fps
 
             # Handle Clip Start / End
-            if clip_end_sec is None:
-                clip_end_sec = total_secs
+            if end_frame is None or end_frame < 0:
+                if clip_end_sec is None:
+                    clip_end_sec = total_secs
 
-            frame_id_list = np.linspace(
-                clip_start_sec * avg_fps, min(video_num_frames - 1, clip_end_sec * avg_fps - 1), num_frames, dtype=int
-            )
-            video_data = decord_vr.get_batch(frame_id_list)
+                frame_id_list = np.linspace(
+                    clip_start_sec * avg_fps, min(video_num_frames - 1, clip_end_sec * avg_fps - 1), num_frames, dtype=int
+                )
+            else:
+                frame_id_list = np.linspace(
+                    0, min(video_num_frames - 1, end_frame), num_frames, dtype=int
+                )
+
+            import os
+            if os.path.basename(video_path) in ['l0w4V7yPdPJQQphx.mp4', 'x4oT5lcBVwKl9s27.mp4']:
+
+                assert num_frames == 32
+                tmp = []
+                for i in range(4):
+                    idx = frame_id_list[8*i:8*i+8]
+                    decord_vr = VideoReader(str(video_path), ctx=cpu(0))
+                    tmp.append(decord_vr.get_batch(idx))
+                video_data = torch.concat(tmp, 0)
+            else:
+                video_data = decord_vr.get_batch(frame_id_list)
             del decord_vr
             video_data = video_data.permute(0, 3, 1, 2)  # [T, H, W, C] -> [T, C, H, W] for pre-processing
 
