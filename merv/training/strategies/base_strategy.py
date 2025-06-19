@@ -8,6 +8,12 @@ Training Strategies (DDP, FSDP-Grad, FSDP-Full) tend to have a lot of repeated c
 heavy lifting.
 """
 
+# TODO: https://github.com/princetonvisualai/merv/issues/7
+# TODO: to finish supporting intermediate checkpoint saving/resuming: 
+# TODO: added arbitrary frequency of saving. double check that it makes sense. 
+# TODO: need to auto delete checkpoints probably? but also just resume. 
+# TODO: also handle edge cases so it doesnt double save near end.
+
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Callable, Optional
@@ -49,6 +55,7 @@ class TrainingStrategy(ABC):
         reduce_in_full_precision: bool = False,
         mixed_precision_dtype: torch.dtype = torch.bfloat16,
         worker_init_fn: Optional[Callable[[int], None]] = None,
+        num_intermediate_checkpoints: int = 1, 
         **_: str,
     ) -> None:
         self.vidlm, self.device_id = vidlm, device_id
@@ -75,7 +82,8 @@ class TrainingStrategy(ABC):
 
         # Optimizers & Scheduler (initialized in `run_setup`)
         self.optimizer, self.lr_scheduler = None, None
-
+        self.num_intermediate_checkpoints = num_intermediate_checkpoints
+        overwatch.info(f"Saving {self.num_intermediate_checkpoints} intermediate checkpoints")
         # Lightweight Validation
         assert (
             self.global_batch_size % self.per_device_batch_size == 0
@@ -151,11 +159,12 @@ class TrainingStrategy(ABC):
             # Just set `epochs` to some large number --> we'll short-circuit based on steps anyway
             self.epochs = 100
 
+        intermediate_save_steps = self.max_steps // self.num_intermediate_checkpoints
         # === Train ===
         status = metrics.get_status()
         with tqdm(
             total=(
-                (self.epochs * (len(dataloader) // self.grad_accumulation_steps))
+                (self.epochs * steps_per_epoch)
                 if self.max_steps is None
                 else self.max_steps
             ),
@@ -225,10 +234,29 @@ class TrainingStrategy(ABC):
 
                         # Check for Termination & Save Final Checkpoint (in case `max_steps` is not None)
                         if self.max_steps is not None and metrics.global_step >= self.max_steps:
-                            self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
+                            # Use the smoothed loss for checkpointing
+                            smoothed_loss = torch.stack(list(metrics.state["loss"])).mean().item()
                             dist.barrier()
+                            self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, smoothed_loss)
 
                             return
+
+                        # offer intermediate checkpoint saving, but not on the last step
+                        if metrics.global_step % intermediate_save_steps == 0 and not (
+                            self.max_steps is None and train_idx == len(dataloader) - 1
+                        ):
+                            checkpoint_idx = metrics.global_step // intermediate_save_steps
+                            if not checkpoint_idx in self.intermediate_indices:
+                                continue
+                            overwatch.info(
+                                f"Saving intermediate checkpoint {checkpoint_idx} of"
+                                f" {self.num_intermediate_checkpoints} at global step {metrics.global_step}"
+                            )
+                            smoothed_loss = torch.stack(list(metrics.state["loss"])).mean().item()
+                            self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, smoothed_loss)
+                            dist.barrier()
+                            if checkpoint_idx == max(self.intermediate_indices):
+                                return
 
                         # Update Progress Bar
                         progress.update()
