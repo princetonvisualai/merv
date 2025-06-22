@@ -110,6 +110,8 @@ class FSDPStrategy(TrainingStrategy):
         # Summon Full State Dictionary =>> Reconstitute from Shards
         with FSDP.state_dict_type(self.vidlm, self.fsdp_state_dict_type, self.fsdp_save_policy):
             full_vidlm_state_dict = self.vidlm.state_dict()
+            optimizer_state_dict = self.optimizer.state_dict()
+
             model_state_dicts = {
                 mkey: OrderedDict() for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
             }
@@ -131,46 +133,13 @@ class FSDPStrategy(TrainingStrategy):
                     )
 
                 # Save Checkpoint & Copy Latest to `latest-checkpoint.pt`
-                torch.save({"model": model_state_dicts}, checkpoint_path)
-                shutil.copy(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
-    
-    def save_intermediate_checkpoint(
-        self,
-        run_dir: Path,
-        global_step: int,
-        epoch: int,
-        train_loss: Optional[float] = None,
-    ) -> None:
-        """Saves a full training checkpoint (model, optimizer, scheduler, step, epoch) to the `run_dir`."""
-        assert isinstance(self.vidlm, FSDP), "FSDPStrategy.save_checkpoint assumes VidLM is already wrapped in FSDP!"
-
-        # Summon Full State Dictionary for model and optimizer
-        with FSDP.state_dict_type(self.vidlm, self.fsdp_state_dict_type, self.fsdp_save_policy):
-            model_state_dict = self.vidlm.state_dict()
-            optimizer_state_dict = self.optimizer.state_dict()
-
-            # Save on rank zero *only*
-            if overwatch.is_rank_zero():
-                checkpoint_dir = run_dir / "checkpoints"
-                checkpoint_path = checkpoint_dir / f"step-{global_step:06d}.pt"
-
-                # Consolidate all state into a single dictionary
-                full_checkpoint = {
-                    "model": model_state_dict,
+                torch.save({
+                    "model": model_state_dicts,
                     "optimizer": optimizer_state_dict,
                     "lr_scheduler": self.lr_scheduler.state_dict(),
-                    "global_step": global_step,
-                    "epoch": epoch,
-                    "train_loss": train_loss
-                }
-                
-                # Save Checkpoint & create/update a 'latest.pt' symlink for easy access
-                torch.save(full_checkpoint, checkpoint_path)
-                # symlink_path = checkpoint_dir / "latest.pt"
-                # if os.path.exists(symlink_path):
-                #     os.remove(symlink_path)
-                # os.symlink(checkpoint_path, symlink_path)
-                overwatch.info(f"Saved full FSDP checkpoint to `{checkpoint_path}`")
+                    "step": global_step,
+                }, checkpoint_path)
+                shutil.copy(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
     
     def load_checkpoint(
         self,
@@ -178,41 +147,51 @@ class FSDPStrategy(TrainingStrategy):
         only_trainable: bool = True,
     ) -> Tuple[int, int]:
         """
-        Load a checkpoint written by `save_checkpoint`, restore the FSDP-wrapped
-        VidLM model’s parameters via the FSDP API, and return (global_step, epoch).
+        Load a checkpoint (model + optimizer + LR scheduler) saved by `save_checkpoint`,
+        restore the FSDP-wrapped VidLM’s parameters, optimizer, and scheduler, and
+        return (global_step, epoch) parsed from the filename.
         """
-        # 1) Load the saved file on CPU
+        # 1) Load the checkpoint on CPU
         ckpt = torch.load(checkpoint_path, map_location="cpu")
-        model_state_dicts: Dict[str, Dict[str, torch.Tensor]] = ckpt["model"]
 
-        # 2) Rebuild a flat state_dict with keys like "mkey.param_name"
+        # 2) Extract and rebuild the flat model state dict
+        model_state_dicts: Dict[str, Dict[str, torch.Tensor]] = ckpt["model"]
         full_sd: Dict[str, torch.Tensor] = {}
         keys = self.trainable_module_keys if only_trainable else self.all_module_keys
         for mkey in keys:
-            sub = model_state_dicts.get(mkey, {})
-            for name, tensor in sub.items():
+            for name, tensor in model_state_dicts.get(mkey, {}).items():
                 full_sd[f"{mkey}.{name}"] = tensor
 
-        # 3) Sanity check
+        # 3) Sanity check FSDP wrapping
         assert isinstance(self.vidlm, FSDP), "VidLM must be wrapped in FSDP"
 
-        # 4) Enter the same state_dict_type context you used for saving
+        # 4) Load model weights via FSDP API (so it can reshape/shard as needed)
         with FSDP.state_dict_type(
             self.vidlm,
             self.fsdp_state_dict_type,
             self.fsdp_save_policy,
         ):
-            # 5) Call load_state_dict on the FSDP wrapper itself.
-            #    The wrapper will reshape / shard / unflatten as needed.
             load_result = self.vidlm.load_state_dict(full_sd, strict=False)
-
-            # Optional: log any missing / unexpected to see what didn’t map
             if load_result.missing_keys:
-                overwatch.info(f"Missing keys: {load_result.missing_keys}", ctx_level=1)
+                overwatch.info(f"Missing model keys: {load_result.missing_keys}", ctx_level=1)
             if load_result.unexpected_keys:
-                overwatch.info(f"Unexpected keys: {load_result.unexpected_keys}", ctx_level=1)
+                overwatch.info(f"Unexpected model keys: {load_result.unexpected_keys}", ctx_level=1)
 
-        # 6) Parse global_step & epoch from filename
+        # 5) Restore optimizer state, if present
+        if "optimizer" in ckpt:
+            self.optimizer.load_state_dict(ckpt["optimizer"])
+            overwatch.info("Optimizer state loaded from checkpoint", ctx_level=1)
+        else:
+            overwatch.info("No optimizer state in checkpoint", ctx_level=1)
+
+        # 6) Restore LR scheduler state, if present
+        if "lr_scheduler" in ckpt:
+            self.lr_scheduler.load_state_dict(ckpt["lr_scheduler"])
+            overwatch.info("LR scheduler state loaded from checkpoint", ctx_level=1)
+        else:
+            overwatch.info("No LR scheduler state in checkpoint", ctx_level=1)
+
+        # 7) Parse global_step & epoch out of the filename
         stem = checkpoint_path.stem
         m = re.match(r"step-(\d+)-epoch-(\d+)-loss=.*", stem)
         if m:
@@ -220,43 +199,11 @@ class FSDPStrategy(TrainingStrategy):
         else:
             global_step, epoch = 0, 0
 
-        # 7) Update your trainer state
+        # 8) Update your training counters
         self.global_step = global_step
         self.start_epoch = epoch + 1
 
         return global_step, epoch
-        
-    # def load_checkpoint(self, checkpoint_path: Path):
-    #     """
-    #     Loads a full training checkpoint (model, optimizer, scheduler, step, epoch).
-    #     This method must be called AFTER the model is wrapped in FSDP and the optimizer is created.
-    #     """
-    #     assert isinstance(self.vidlm, FSDP), "VidLM must be wrapped in FSDP before loading a checkpoint."
-        
-    #     # Load the checkpoint dictionary on CPU to avoid CUDA OOM on any single rank
-    #     full_checkpoint = torch.load(checkpoint_path, map_location="cpu")
-        
-    #     # Step 1: Load the model state dict. FSDP handles scattering the full state to all ranks.
-    #     self.vidlm.load_state_dict(full_checkpoint["model"])
-        
-    #     # Step 2: Load the optimizer state dict. FSDP requires a special procedure for this.
-    #     # We must first convert the flat state dict to one that FSDP can digest.
-    #     optimizer_state_dict = FSDP.optim_state_dict_to_load(
-    #         self.vidlm, self.optimizer, full_checkpoint["optimizer"]
-    #     )
-    #     self.optimizer.load_state_dict(optimizer_state_dict)
-        
-    #     # Step 3: Load the LR scheduler state
-    #     self.lr_scheduler.load_state_dict(full_checkpoint["lr_scheduler"])
-        
-    #     # Step 4: Return the step and epoch to resume the training loop
-    #     start_step = full_checkpoint["global_step"]
-    #     start_epoch = full_checkpoint["epoch"]
-        
-    #     overwatch.info(f"Successfully loaded checkpoint from `{checkpoint_path}`. "
-    #                     f"Resuming from Epoch {start_epoch}, Global Step {start_step}.")
-        
-    #     return start_step, start_epoch
 
     def run_setup(self, run_dir: Path, n_train_examples: int) -> None:
         # Iteratively Assemble FSDP Wrapping Policy by fetching the wrapping policies for each backbone/constituent
@@ -369,10 +316,10 @@ class FSDPStrategy(TrainingStrategy):
         )
         
         if self.resume_from_checkpoint is not None:
-            overwatch.info("[MERV] Found a checkpoint to load from - This can be an intermediate one.")
+            overwatch.info("Found a checkpoint to load from - This can be an intermediate one.")
             self.start_step, self.start_epoch = self.load_checkpoint(self.resume_from_checkpoint)
         else:
-            overwatch.info("[MERV] No intermediate checkpoint found. Starting training from scratch.")
+            overwatch.info("No intermediate checkpoint found. Starting training from scratch.")
 
     def clip_grad_norm(self) -> None:
         # Note =>> FSDP uses a custom `clip_grad_norm_` function; requires *uniform grad dtype*
