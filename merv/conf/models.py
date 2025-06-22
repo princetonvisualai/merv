@@ -77,6 +77,9 @@ class ModelConfig(ChoiceRegistry):
 
     # Enable Gradient/Activation Checkpointing (for the LLM Backbone)
     enable_gradient_checkpointing: bool = True
+    
+    # Introduce intermediate checkpointing
+    save_checkpoint_after: int = 512
 
     # Enable Traditional Mixed Precision Training via Torch Native AMP (`autocast`)
     enable_mixed_precision_training: bool = True            # Whether to enable mixed precision training

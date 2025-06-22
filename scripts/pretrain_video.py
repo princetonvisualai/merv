@@ -75,6 +75,9 @@ class PretrainConfig:
     stage: str = "finetune"                                         # Pretraining Stage in < align | finetune >
     pretrained_checkpoint: Optional[Path] = None                    # Pretrained Checkpoint to Load (for `finetune`)
                                                                     #   if None =>> will match on (run_dir / `align`)
+    resume_from_checkpoint: Optional[Path] = None                   # Path to a specific intermediate checkpoint file (.pt) 
+                                                                    # to resume training from.
+    save_checkpoint_after: Optional[int] = 512
 
     # Run Arguments
     run_id: Optional[str] = None                                    # Run ID for logging, Weights & Biases
@@ -235,6 +238,8 @@ def pretrain(cfg: PretrainConfig) -> None:
         lr_scheduler_type=cfg.lr_scheduler_type,
         warmup_ratio=cfg.warmup_ratio,
         enable_gradient_checkpointing=cfg.model.enable_gradient_checkpointing,
+        resume_from_checkpoint=cfg.resume_from_checkpoint,
+        save_checkpoint_after=cfg.save_checkpoint_after,
         enable_mixed_precision_training=cfg.model.enable_mixed_precision_training,
         reduce_in_full_precision=cfg.model.reduce_in_full_precision,
         worker_init_fn=worker_init_fn,

@@ -8,6 +8,7 @@ Training Strategies (DDP, FSDP-Grad, FSDP-Full) tend to have a lot of repeated c
 heavy lifting.
 """
 
+import itertools
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Callable, Optional
@@ -45,6 +46,8 @@ class TrainingStrategy(ABC):
         lr_scheduler_type: str,
         warmup_ratio: float,
         enable_gradient_checkpointing: bool = True,
+        save_checkpoint_after: int = 12,
+        resume_from_checkpoint: Optional[str] = None,
         enable_mixed_precision_training: bool = True,
         reduce_in_full_precision: bool = False,
         mixed_precision_dtype: torch.dtype = torch.bfloat16,
@@ -58,7 +61,7 @@ class TrainingStrategy(ABC):
         self.llm_transformer_layer_cls = self.vidlm.llm_backbone.transformer_layer_cls
 
         # Optimization Parameters
-        self.epochs, self.max_steps = epochs, max_steps
+        self.epochs, self.max_steps, self.start_epoch, self.start_step = epochs, max_steps, 0, 0
         self.global_batch_size, self.per_device_batch_size = global_batch_size, per_device_batch_size
 
         self.learning_rate, self.weight_decay, self.max_grad_norm = learning_rate, weight_decay, max_grad_norm
@@ -69,7 +72,11 @@ class TrainingStrategy(ABC):
         self.enable_mixed_precision_training = enable_mixed_precision_training
         self.reduce_in_full_precision = reduce_in_full_precision
         self.mixed_precision_dtype = mixed_precision_dtype
-
+        
+        # Config to store intermediate checkpoint
+        self.save_checkpoint_after = save_checkpoint_after
+        self.resume_from_checkpoint = resume_from_checkpoint
+        
         # DataLoader Parameters
         self.worker_init_fn = worker_init_fn
 
@@ -85,6 +92,14 @@ class TrainingStrategy(ABC):
             assert self.mixed_precision_dtype == torch.bfloat16, "Only BF16 mixed precision training is supported!"
             assert check_bloat16_supported(), "BFloat16 is not supported on this hardware; unset `mixed_precision`"
 
+    @abstractmethod
+    def load_checkpoint(self, checkpoint_path: Path) -> tuple[int, int]:
+        """
+        Loads a full training checkpoint. Concrete strategies must implement this.
+        Should return the starting step and epoch to resume the training loop.
+        """
+        raise NotImplementedError
+    
     @abstractmethod
     def save_checkpoint(
         self,
@@ -150,6 +165,12 @@ class TrainingStrategy(ABC):
         if self.max_steps is not None and steps_per_epoch < self.max_steps:
             # Just set `epochs` to some large number --> we'll short-circuit based on steps anyway
             self.epochs = 100
+        
+        # Update the Metrics if resume is found - This is hacky and we might want to change this
+        if self.resume_from_checkpoint is not None:
+            metrics.global_step = self.start_step
+            if self.max_steps is not None:
+                self.max_steps -= self.start_step 
 
         # === Train ===
         status = metrics.get_status()
@@ -163,16 +184,28 @@ class TrainingStrategy(ABC):
             leave=False,
             disable=not overwatch.is_rank_zero(),
         ) as progress:
-            for epoch in range(self.epochs):
+            for epoch in range(self.start_epoch, self.epochs):
                 self.vidlm.train()
                 sampler.set_epoch(epoch)
+                
+                data_iterator = iter(dataloader)
+                batches_to_skip = 0
+                # This logic only applies to the specific epoch we are resuming in
+                if epoch == self.start_epoch and self.start_step > 0:
+                    steps_completed_in_epoch = self.start_step % steps_per_epoch
+                    batches_to_skip = steps_completed_in_epoch * self.grad_accumulation_steps
+
+                    if batches_to_skip > 0:
+                        overwatch.info(f"Resuming epoch {epoch} by fast-forwarding {batches_to_skip} batches...")
+                        # Advance the iterator to the correct starting point
+                        for _ in range(batches_to_skip):
+                            next(data_iterator)
 
                 # Zero-Gradients (just in case)
                 self.optimizer.zero_grad()
-
                 # Note that we'll unpack batch (and let AMP/FSDP do its thing) in the VidLM.forward() call
                 #   => Basically, if we're using mixed precision (or not), autocast()/FSDP will move to device!
-                for train_idx, batch in enumerate(dataloader):
+                for train_idx, batch in enumerate(data_iterator, start=batches_to_skip):
                     # [Contract] self.vidlm.forward() must automatically compute `loss` and return!
                     with torch.autocast(
                         "cuda",
@@ -224,10 +257,13 @@ class TrainingStrategy(ABC):
                         status = metrics.push()
 
                         # Check for Termination & Save Final Checkpoint (in case `max_steps` is not None)
+                        if (metrics.global_step % self.save_checkpoint_after) == 0: 
+                            self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
+                            # self.save_intermediate_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
+                            dist.barrier()
                         if self.max_steps is not None and metrics.global_step >= self.max_steps:
                             self.save_checkpoint(metrics.run_dir, metrics.global_step, epoch, loss.item())
                             dist.barrier()
-
                             return
 
                         # Update Progress Bar
