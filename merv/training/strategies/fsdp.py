@@ -5,12 +5,13 @@ Core class definition for a strategy implementing Torch native Fully Sharded Dat
 fine-grained control over wrapping policies and mixed precision per component).
 """
 
+import re
 import math
 import shutil
 from collections import OrderedDict
 from functools import partial
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple, Dict
 
 import torch
 import torch.distributed as dist
@@ -53,6 +54,8 @@ class FSDPStrategy(TrainingStrategy):
         lr_scheduler_type: str,
         warmup_ratio: float,
         enable_gradient_checkpointing: bool = True,
+        save_checkpoint_after: int = 12,
+        resume_from_checkpoint: Optional[str] = None,
         enable_mixed_precision_training: bool = True,
         reduce_in_full_precision: bool = False,
         mixed_precision_dtype: torch.dtype = torch.bfloat16,
@@ -73,6 +76,8 @@ class FSDPStrategy(TrainingStrategy):
             lr_scheduler_type=lr_scheduler_type,
             warmup_ratio=warmup_ratio,
             enable_gradient_checkpointing=enable_gradient_checkpointing,
+            save_checkpoint_after=save_checkpoint_after,
+            resume_from_checkpoint=resume_from_checkpoint,
             enable_mixed_precision_training=enable_mixed_precision_training,
             reduce_in_full_precision=reduce_in_full_precision,
             mixed_precision_dtype=mixed_precision_dtype,
@@ -105,6 +110,8 @@ class FSDPStrategy(TrainingStrategy):
         # Summon Full State Dictionary =>> Reconstitute from Shards
         with FSDP.state_dict_type(self.vidlm, self.fsdp_state_dict_type, self.fsdp_save_policy):
             full_vidlm_state_dict = self.vidlm.state_dict()
+            optimizer_state_dict = self.optimizer.state_dict()
+
             model_state_dicts = {
                 mkey: OrderedDict() for mkey in (self.trainable_module_keys if only_trainable else self.all_module_keys)
             }
@@ -126,8 +133,77 @@ class FSDPStrategy(TrainingStrategy):
                     )
 
                 # Save Checkpoint & Copy Latest to `latest-checkpoint.pt`
-                torch.save({"model": model_state_dicts}, checkpoint_path)
-                shutil.move(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
+                torch.save({
+                    "model": model_state_dicts,
+                    "optimizer": optimizer_state_dict,
+                    "lr_scheduler": self.lr_scheduler.state_dict(),
+                    "step": global_step,
+                }, checkpoint_path)
+                shutil.copy(checkpoint_path, checkpoint_dir / "latest-checkpoint.pt")
+    
+    def load_checkpoint(
+        self,
+        checkpoint_path: Path,
+        only_trainable: bool = True,
+    ) -> Tuple[int, int]:
+        """
+        Load a checkpoint (model + optimizer + LR scheduler) saved by `save_checkpoint`,
+        restore the FSDP-wrapped VidLM’s parameters, optimizer, and scheduler, and
+        return (global_step, epoch) parsed from the filename.
+        """
+        # 1) Load the checkpoint on CPU
+        ckpt = torch.load(checkpoint_path, map_location="cpu")
+
+        # 2) Extract and rebuild the flat model state dict
+        model_state_dicts: Dict[str, Dict[str, torch.Tensor]] = ckpt["model"]
+        full_sd: Dict[str, torch.Tensor] = {}
+        keys = self.trainable_module_keys if only_trainable else self.all_module_keys
+        for mkey in keys:
+            for name, tensor in model_state_dicts.get(mkey, {}).items():
+                full_sd[f"{mkey}.{name}"] = tensor
+
+        # 3) Sanity check FSDP wrapping
+        assert isinstance(self.vidlm, FSDP), "VidLM must be wrapped in FSDP"
+
+        # 4) Load model weights via FSDP API (so it can reshape/shard as needed)
+        with FSDP.state_dict_type(
+            self.vidlm,
+            self.fsdp_state_dict_type,
+            self.fsdp_save_policy,
+        ):
+            load_result = self.vidlm.load_state_dict(full_sd, strict=False)
+            if load_result.missing_keys:
+                overwatch.info(f"Missing model keys: {load_result.missing_keys}", ctx_level=1)
+            if load_result.unexpected_keys:
+                overwatch.info(f"Unexpected model keys: {load_result.unexpected_keys}", ctx_level=1)
+
+        # 5) Restore optimizer state, if present
+        if "optimizer" in ckpt:
+            self.optimizer.load_state_dict(ckpt["optimizer"])
+            overwatch.info("Optimizer state loaded from checkpoint", ctx_level=1)
+        else:
+            overwatch.info("No optimizer state in checkpoint", ctx_level=1)
+
+        # 6) Restore LR scheduler state, if present
+        if "lr_scheduler" in ckpt:
+            self.lr_scheduler.load_state_dict(ckpt["lr_scheduler"])
+            overwatch.info("LR scheduler state loaded from checkpoint", ctx_level=1)
+        else:
+            overwatch.info("No LR scheduler state in checkpoint", ctx_level=1)
+
+        # 7) Parse global_step & epoch out of the filename
+        stem = checkpoint_path.stem
+        m = re.match(r"step-(\d+)-epoch-(\d+)-loss=.*", stem)
+        if m:
+            global_step, epoch = int(m.group(1)), int(m.group(2))
+        else:
+            global_step, epoch = 0, 0
+
+        # 8) Update your training counters
+        self.global_step = global_step
+        self.start_epoch = epoch + 1
+
+        return global_step, epoch
 
     def run_setup(self, run_dir: Path, n_train_examples: int) -> None:
         # Iteratively Assemble FSDP Wrapping Policy by fetching the wrapping policies for each backbone/constituent
@@ -238,6 +314,12 @@ class FSDPStrategy(TrainingStrategy):
             f"         |-> Dataset Size = {n_train_examples} Examples\n"
             f"         |-> Max Steps = {num_training_steps}\n"
         )
+        
+        if self.resume_from_checkpoint is not None:
+            overwatch.info("Found a checkpoint to load from - This can be an intermediate one.")
+            self.start_step, self.start_epoch = self.load_checkpoint(self.resume_from_checkpoint)
+        else:
+            overwatch.info("No intermediate checkpoint found. Starting training from scratch.")
 
     def clip_grad_norm(self) -> None:
         # Note =>> FSDP uses a custom `clip_grad_norm_` function; requires *uniform grad dtype*
