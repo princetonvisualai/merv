@@ -14,6 +14,7 @@ import json
 import math
 from pathlib import Path
 from typing import Dict, List, Tuple, Type
+import os
 
 import cv2
 import decord
@@ -122,7 +123,7 @@ def load_video(
             video_data = frames[frame_id_list].permute(0, 3, 1, 2)  # [T, H, W, C] -> [T, C, H, W] for pre-processing
 
         else:
-            decord_vr = VideoReader(str(video_path), ctx=cpu(0))
+            decord_vr = VideoReader(str(video_path), ctx=cpu(0), num_threads=1)
             video_num_frames = len(decord_vr)
             avg_fps = decord_vr.get_avg_fps()
             total_secs = video_num_frames / avg_fps
@@ -140,7 +141,6 @@ def load_video(
                     0, min(video_num_frames - 1, end_frame), num_frames, dtype=int
                 )
 
-            import os
             if os.path.basename(video_path) in ['l0w4V7yPdPJQQphx.mp4', 'x4oT5lcBVwKl9s27.mp4']:
 
                 assert num_frames == 32

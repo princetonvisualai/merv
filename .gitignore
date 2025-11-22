@@ -160,3 +160,5 @@ slurm/
 eval_data/*
 !eval_data/dummy_mcq
 !eval_data/dummy_openended
+!eval_data/smthsmth
+!eval_data/smthsmth_oe
